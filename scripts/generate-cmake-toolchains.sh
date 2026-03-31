@@ -1,10 +1,11 @@
 #!/bin/bash
-# Generate CMake toolchain files for all architectures
-# Usage: generate-cmake-toolchains.sh <toolchain_dir>
+# Generate CMake toolchain files for all (or a specific) architecture
+# Usage: generate-cmake-toolchains.sh <toolchain_dir> [arch_name]
 
 set -e
 
 TOOLCHAIN_DIR="${1:-/opt/toolchain}"
+ARCH_FILTER="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
 
@@ -15,6 +16,7 @@ while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_f
     # Skip comments and empty lines
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue
+    [ -n "$ARCH_FILTER" ] && [ "$arch" != "$ARCH_FILTER" ] && continue
     
     SYSROOT_PATH="/opt/$sysroot"
     CMAKE_FILE="${TOOLCHAIN_DIR}/${arch}.cmake"

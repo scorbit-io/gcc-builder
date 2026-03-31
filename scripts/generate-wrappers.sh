@@ -1,10 +1,11 @@
 #!/bin/bash
-# Generate wrapper scripts for all architectures
-# Usage: generate-wrappers.sh <wrapper_dir>
+# Generate wrapper scripts for all (or a specific) architecture
+# Usage: generate-wrappers.sh <wrapper_dir> [arch_name]
 
 set -e
 
 WRAPPER_DIR="${1:-/opt/wrappers}"
+ARCH_FILTER="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
 
@@ -15,6 +16,7 @@ while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_f
     # Skip comments and empty lines
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue
+    [ -n "$ARCH_FILTER" ] && [ "$arch" != "$ARCH_FILTER" ] && continue
     
     SYSROOT_PATH="/opt/$sysroot"
     
