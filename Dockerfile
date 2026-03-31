@@ -75,10 +75,19 @@ RUN wget -q https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/binutils/binutil
     && ./contrib/download_prerequisites \
     && cd ..
 
+# Copy helper scripts and platform configuration
+COPY scripts/ /opt/scripts/
+COPY platforms.conf /opt/platforms.conf
+RUN chmod +x /opt/scripts/*.sh
+
 # ==========================================
 # Build Toolchain 1: ARMhf (Ubuntu 12.04)
 # ==========================================
 FROM builder AS build-armhf
+
+# Copy helper scripts and platform configuration
+COPY --from=builder /opt/scripts /opt/scripts
+COPY --from=builder /opt/platforms.conf /opt/platforms.conf
 
 ENV TARGET=arm-linux-gnueabihf
 ENV PREFIX=/opt/cross/$TARGET
@@ -89,63 +98,17 @@ RUN mkdir -p $PREFIX $SYSROOT
 # Copy sysroot
 COPY --from=sysroot-armhf / $SYSROOT/
 
-# Fix symlinks
-RUN cd $SYSROOT && \
-    find . -type l | while read link; do \
-        target=$(readlink "$link"); \
-        case "$target" in \
-            /*) \
-                rel_target=$(realpath --relative-to="$(dirname "$link")" "$SYSROOT$target" 2>/dev/null || echo "$target"); \
-                if [ "$rel_target" != "$target" ]; then \
-                    ln -sf "$rel_target" "$link"; \
-                fi \
-                ;; \
-        esac; \
-    done
-
-# Build Binutils
-RUN mkdir binutils-armhf && cd binutils-armhf \
-    && ../binutils-$BINUTILS_VERSION/configure \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --disable-multilib \
-        --disable-werror \
-    && make -j$(nproc) \
-    && make install \
-    && cd .. && rm -rf binutils-armhf
-
-# Build GCC
-RUN mkdir gcc-armhf && cd gcc-armhf \
-    && CPPFLAGS="-I/usr/include/$(gcc -dumpmachine)" \
-        LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
-        ../gcc-$GCC_VERSION/configure \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --enable-languages=c,c++ \
-        --enable-threads=posix \
-        --disable-multilib \
-        --disable-bootstrap \
-        --enable-shared \
-        --enable-__cxa_atexit \
-        --enable-c99 \
-        --enable-long-long \
-        --with-gmp=/usr \
-        --with-mpfr=/usr \
-        --with-mpc=/usr \
-        --with-isl=/usr \
-        --disable-libsanitizer \
-        --disable-werror \
-        --with-build-time-tools=$PREFIX/$TARGET/bin \
-    && make -j$(nproc) \
-    && make install-strip \
-    && cd .. && rm -rf gcc-armhf
+# Build toolchain using script
+RUN /opt/scripts/build-toolchain.sh armhf $BINUTILS_VERSION $GCC_VERSION sysroot-armhf
 
 # ==========================================
-# Build Toolchain 2: AMD64 (Ubuntu 12.04)
+# Build Toolchain 2: AMD64 (Ubuntu 14.04)
 # ==========================================
 FROM builder AS build-amd64
+
+# Copy helper scripts and platform configuration
+COPY --from=builder /opt/scripts /opt/scripts
+COPY --from=builder /opt/platforms.conf /opt/platforms.conf
 
 ENV TARGET=x86_64-linux-gnu
 ENV PREFIX=/opt/cross/$TARGET
@@ -156,63 +119,17 @@ RUN mkdir -p $PREFIX $SYSROOT
 # Copy sysroot
 COPY --from=sysroot-amd64 / $SYSROOT/
 
-# Fix symlinks
-RUN cd $SYSROOT && \
-    find . -type l | while read link; do \
-        target=$(readlink "$link"); \
-        case "$target" in \
-            /*) \
-                rel_target=$(realpath --relative-to="$(dirname "$link")" "$SYSROOT$target" 2>/dev/null || echo "$target"); \
-                if [ "$rel_target" != "$target" ]; then \
-                    ln -sf "$rel_target" "$link"; \
-                fi \
-                ;; \
-        esac; \
-    done
-
-# Build Binutils
-RUN mkdir binutils-amd64 && cd binutils-amd64 \
-    && ../binutils-$BINUTILS_VERSION/configure \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --disable-multilib \
-        --disable-werror \
-    && make -j$(nproc) \
-    && make install \
-    && cd .. && rm -rf binutils-amd64
-
-# Build GCC
-RUN mkdir gcc-amd64 && cd gcc-amd64 \
-    && CPPFLAGS="-I/usr/include/$(gcc -dumpmachine)" \
-        LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
-        ../gcc-$GCC_VERSION/configure \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --enable-languages=c,c++ \
-        --enable-threads=posix \
-        --disable-multilib \
-        --disable-bootstrap \
-        --enable-shared \
-        --enable-__cxa_atexit \
-        --enable-c99 \
-        --enable-long-long \
-        --with-gmp=/usr \
-        --with-mpfr=/usr \
-        --with-mpc=/usr \
-        --with-isl=/usr \
-        --disable-libsanitizer \
-        --disable-werror \
-        --with-build-time-tools=$PREFIX/$TARGET/bin \
-    && make -j$(nproc) \
-    && make install-strip \
-    && cd .. && rm -rf gcc-amd64
+# Build toolchain using script
+RUN /opt/scripts/build-toolchain.sh amd64 $BINUTILS_VERSION $GCC_VERSION sysroot-amd64
 
 # ==========================================
 # Build Toolchain 3: ARM64 (Ubuntu 14.04)
 # ==========================================
 FROM builder AS build-arm64
+
+# Copy helper scripts and platform configuration
+COPY --from=builder /opt/scripts /opt/scripts
+COPY --from=builder /opt/platforms.conf /opt/platforms.conf
 
 ENV TARGET=aarch64-linux-gnu
 ENV PREFIX=/opt/cross/$TARGET
@@ -223,58 +140,8 @@ RUN mkdir -p $PREFIX $SYSROOT
 # Copy sysroot
 COPY --from=sysroot-arm64 / $SYSROOT/
 
-# Fix symlinks
-RUN cd $SYSROOT && \
-    find . -type l | while read link; do \
-        target=$(readlink "$link"); \
-        case "$target" in \
-            /*) \
-                rel_target=$(realpath --relative-to="$(dirname "$link")" "$SYSROOT$target" 2>/dev/null || echo "$target"); \
-                if [ "$rel_target" != "$target" ]; then \
-                    ln -sf "$rel_target" "$link"; \
-                fi \
-                ;; \
-        esac; \
-    done
-
-# Build Binutils
-RUN mkdir binutils-arm64 && cd binutils-arm64 \
-    && ../binutils-$BINUTILS_VERSION/configure \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --disable-multilib \
-        --disable-werror \
-    && make -j$(nproc) \
-    && make install \
-    && cd .. && rm -rf binutils-arm64
-
-# Build GCC
-RUN mkdir gcc-arm64 && cd gcc-arm64 \
-    && ../gcc-$GCC_VERSION/configure \
-        CPPFLAGS="-I/usr/include/$(gcc -dumpmachine)" \
-        LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
-        --target=$TARGET \
-        --prefix=$PREFIX \
-        --with-sysroot=$SYSROOT \
-        --enable-languages=c,c++ \
-        --enable-threads=posix \
-        --disable-multilib \
-        --disable-bootstrap \
-        --enable-shared \
-        --enable-__cxa_atexit \
-        --enable-c99 \
-        --enable-long-long \
-        --with-gmp=/usr \
-        --with-mpfr=/usr \
-        --with-mpc=/usr \
-        --with-isl=/usr \
-        --disable-libsanitizer \
-        --disable-werror \
-        --with-build-time-tools=$PREFIX/$TARGET/bin \
-    && make -j$(nproc) \
-    && make install-strip \
-    && cd .. && rm -rf gcc-arm64
+# Build toolchain using script
+RUN /opt/scripts/build-toolchain.sh arm64 $BINUTILS_VERSION $GCC_VERSION sysroot-arm64
 
 # ==========================================
 # Stage 3: Combine all toolchains
@@ -305,91 +172,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
-# Create wrapper scripts for all toolchains
-RUN mkdir -p /opt/wrappers && \
-    printf '#!/bin/sh\nexec /opt/cross/arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc --sysroot=/opt/sysroot-armhf "$@"\n' > /opt/wrappers/armhf-gcc && \
-    printf '#!/bin/sh\nexec /opt/cross/arm-linux-gnueabihf/bin/arm-linux-gnueabihf-g++ --sysroot=/opt/sysroot-armhf "$@"\n' > /opt/wrappers/armhf-g++ && \
-    printf '#!/bin/sh\nexec /opt/cross/x86_64-linux-gnu/bin/x86_64-linux-gnu-gcc --sysroot=/opt/sysroot-amd64 "$@"\n' > /opt/wrappers/amd64-gcc && \
-    printf '#!/bin/sh\nexec /opt/cross/x86_64-linux-gnu/bin/x86_64-linux-gnu-g++ --sysroot=/opt/sysroot-amd64 "$@"\n' > /opt/wrappers/amd64-g++ && \
-    printf '#!/bin/sh\nexec /opt/cross/aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc --sysroot=/opt/sysroot-arm64 "$@"\n' > /opt/wrappers/arm64-gcc && \
-    printf '#!/bin/sh\nexec /opt/cross/aarch64-linux-gnu/bin/aarch64-linux-gnu-g++ --sysroot=/opt/sysroot-arm64 "$@"\n' > /opt/wrappers/arm64-g++ && \
-    chmod +x /opt/wrappers/*
+# Copy helper scripts and platform configuration for generation
+COPY scripts/ /opt/scripts/
+COPY platforms.conf /opt/platforms.conf
+RUN chmod +x /opt/scripts/*.sh
 
-# Create CMake toolchain files
-RUN mkdir -p /opt/toolchain && \
-    printf '%s\n' \
-    'set(CMAKE_SYSTEM_NAME Linux)' \
-    'set(CMAKE_SYSTEM_PROCESSOR arm)' \
-    'set(CMAKE_C_COMPILER /opt/wrappers/armhf-gcc)' \
-    'set(CMAKE_CXX_COMPILER /opt/wrappers/armhf-g++)' \
-    'set(CMAKE_SYSROOT /opt/sysroot-armhf)' \
-    'set(CMAKE_FIND_ROOT_PATH /opt/sysroot-armhf)' \
-    'set(CMAKE_C_FLAGS_INIT "-march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard")' \
-    'set(CMAKE_CXX_FLAGS_INIT "-march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard")' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)' \
-    'set(CMAKE_C_COMPILER_WORKS 1)' \
-    'set(CMAKE_CXX_COMPILER_WORKS 1)' \
-    'set(CMAKE_C_COMPILER_TARGET arm-linux-gnueabihf)' \
-    'set(CMAKE_CXX_COMPILER_TARGET arm-linux-gnueabihf)' \
-    > /opt/toolchain/armhf.cmake && \
-    printf '%s\n' \
-    'set(CMAKE_SYSTEM_NAME Linux)' \
-    'set(CMAKE_SYSTEM_PROCESSOR x86_64)' \
-    'set(CMAKE_C_COMPILER /opt/wrappers/amd64-gcc)' \
-    'set(CMAKE_CXX_COMPILER /opt/wrappers/amd64-g++)' \
-    'set(CMAKE_SYSROOT /opt/sysroot-amd64)' \
-    'set(CMAKE_FIND_ROOT_PATH /opt/sysroot-amd64)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)' \
-    'set(CMAKE_C_COMPILER_WORKS 1)' \
-    'set(CMAKE_CXX_COMPILER_WORKS 1)' \
-    'set(CMAKE_C_COMPILER_TARGET x86_64-linux-gnu)' \
-    'set(CMAKE_CXX_COMPILER_TARGET x86_64-linux-gnu)' \
-    > /opt/toolchain/amd64.cmake && \
-    printf '%s\n' \
-    'set(CMAKE_SYSTEM_NAME Linux)' \
-    'set(CMAKE_SYSTEM_PROCESSOR aarch64)' \
-    'set(CMAKE_C_COMPILER /opt/wrappers/arm64-gcc)' \
-    'set(CMAKE_CXX_COMPILER /opt/wrappers/arm64-g++)' \
-    'set(CMAKE_SYSROOT /opt/sysroot-arm64)' \
-    'set(CMAKE_FIND_ROOT_PATH /opt/sysroot-arm64)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)' \
-    'set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)' \
-    'set(CMAKE_C_COMPILER_WORKS 1)' \
-    'set(CMAKE_CXX_COMPILER_WORKS 1)' \
-    'set(CMAKE_C_COMPILER_TARGET aarch64-linux-gnu)' \
-    'set(CMAKE_CXX_COMPILER_TARGET aarch64-linux-gnu)' \
-    > /opt/toolchain/arm64.cmake
+# Generate wrapper scripts for all toolchains
+RUN /opt/scripts/generate-wrappers.sh /opt/wrappers
+
+# Generate CMake toolchain files
+RUN /opt/scripts/generate-cmake-toolchains.sh /opt/toolchain
 
 WORKDIR /wrk
 
 # Test all toolchains
-RUN echo "Testing ARMhf toolchain..." && \
+RUN while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_flags rest; do \
+    [[ "$arch" =~ ^#.*$ ]] && continue; \
+    [ -z "$arch" ] && continue; \
+    echo "Testing $arch toolchain..." && \
     echo '#include <stdio.h>' > test.c && \
-    echo 'int main() { printf("ARMhf\\n"); return 0; }' >> test.c && \
-    armhf-gcc test.c -o test-armhf && \
-    file test-armhf && \
-    rm test.c test-armhf
-
-RUN echo "Testing AMD64 toolchain..." && \
-    echo '#include <stdio.h>' > test.c && \
-    echo 'int main() { printf("AMD64\\n"); return 0; }' >> test.c && \
-    amd64-gcc test.c -o test-amd64 && \
-    file test-amd64 && \
-    rm test.c test-amd64
-
-RUN echo "Testing ARM64 toolchain..." && \
-    echo '#include <stdio.h>' > test.c && \
-    echo 'int main() { printf("ARM64\\n"); return 0; }' >> test.c && \
-    arm64-gcc test.c -o test-arm64 && \
-    file test-arm64 && \
-    rm test.c test-arm64
+    echo "int main() { printf(\"${arch^^}\\n\"); return 0; }" >> test.c && \
+    ${arch}-gcc test.c -o test-${arch} && \
+    file test-${arch} && \
+    rm test.c test-${arch}; \
+    done < /opt/platforms.conf
 
 CMD ["/bin/bash"]
