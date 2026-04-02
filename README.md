@@ -59,15 +59,16 @@ cmake --build build
 ```
 
 The toolchain file includes all compiler/binutils paths, sysroot, dependency
-search paths, and for **armhf** embeds **libatomic statically**
-(`-Wl,-Bstatic -latomic -Wl,-Bdynamic`) so binaries do not need `libatomic.so`
-on the device (many older boards and Ubuntu releases omit it). libc and
-pthread stay dynamically linked.
+search paths, and for **armhf** appends **static libatomic** via
+`CMAKE_*_STANDARD_LIBRARIES` so it appears **after** static archives such as
+`libcrypto.a` (link order matters). Binaries then do not need `libatomic.so` on
+the device. libc and pthread stay dynamically linked.
 
 For **autotools** in the armhf image, `/etc/profile.d/gcc15-armhf-libatomic.sh`
-sets the same `LDFLAGS` for login shells; or export manually:
+sets `LIBS` (appended last by `configure`/`make`), not `LDFLAGS`. For a one-off
+build you can use:
 
-`LDFLAGS="-Wl,-Bstatic -latomic -Wl,-Bdynamic"` before `./configure`.
+`LIBS="-Wl,-Bstatic -latomic -Wl,-Bdynamic" ./configure --host=$CROSS_TARGET`
 
 ### Autotools
 
