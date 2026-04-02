@@ -8,24 +8,28 @@
 # Docker layers are ordered so that changing the sysroot base image
 # does NOT invalidate the toolchain layer.
 #
-# Sysroot stage uses the target CPU platform; the main image uses BUILDPLATFORM
-# so host tools and the extracted toolchain match the builder host.
+# Sysroot stage uses the target CPU platform; the main image uses HOST_PLATFORM
+# (from the Makefile) so host tools and the extracted toolchain match the host.
 #
 # Usage:
-#   docker buildx build --load -f builder/Dockerfile \
+#   docker buildx build --load --platform=linux/arm64 -f builder/Dockerfile \
 #     --build-arg SYSROOT_IMAGE=gcc15-builder-sysroot-armhf \
 #     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
+#     --build-arg HOST_PLATFORM=linux/arm64 \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --build-arg TARGET=arm-linux-gnueabihf \
 #     -t gcc15-builder-armhf .
 # ==========================================
+# All ARGs used in any FROM must appear before the first FROM (Dockerfile rule).
 
-ARG SYSROOT_IMAGE
-ARG SYSROOT_PLATFORM
+ARG SYSROOT_IMAGE=ubuntu:24.04
+ARG SYSROOT_PLATFORM=linux/amd64
+ARG HOST_PLATFORM=linux/amd64
+
 FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
-FROM --platform=$BUILDPLATFORM ubuntu:24.04
+FROM --platform=${HOST_PLATFORM} ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -69,7 +73,18 @@ RUN wget https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.
 # Install pre-built toolchain (cached if artifact unchanged)
 # ------------------------------------------
 ARG ARCH_NAME
+ARG TARGET
 ADD artifacts/toolchain-${ARCH_NAME}.tar.gz /
+
+RUN if ! test -x "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; then \
+        echo "ERROR: Cross-compiler missing under /opt/cross/${TARGET}. Remove artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME}" >&2; \
+        ls -la "/opt/cross" 2>/dev/null || true; exit 1; \
+    fi; \
+    file "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; \
+    if ! "/opt/cross/${TARGET}/bin/${TARGET}-gcc" --version >/dev/null 2>&1; then \
+        echo "ERROR: Cross-compiler exists but does not run on this host (wrong architecture?). Delete artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME} on this machine." >&2; \
+        exit 1; \
+    fi
 
 # ------------------------------------------
 # Install sysroot (invalidated when sysroot base image changes)
@@ -108,7 +123,6 @@ RUN ln -s /opt/scripts/build-for-arch.sh /usr/local/bin/build-for-arch.sh
 RUN /opt/scripts/update-cmake-toolchains.sh /opt/toolchain ${ARCH_NAME}
 
 # Verify toolchain works
-ARG TARGET
 RUN echo '#include <stdio.h>' > /tmp/test.c && \
     echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c && \
     /opt/wrappers/${ARCH_NAME}-gcc /tmp/test.c -o /tmp/test && \
@@ -127,9 +141,9 @@ RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-no
 
 RUN cd $BOOST && ./bootstrap.sh
 
-RUN cd $BOOST \
-    && /opt/scripts/deps/build-boost.sh "${ARCH_NAME}" "${BOOST}" \
-    && cd .. && rm -rf $BOOST
+# build-boost.sh already cd's into BOOST_DIR; run from parent of the tree (same as tar extract dir)
+RUN /opt/scripts/deps/build-boost.sh "${ARCH_NAME}" "${BOOST}" \
+    && rm -rf $BOOST
 
 # OpenSSL
 ARG OPENSSL=openssl-3.5.4

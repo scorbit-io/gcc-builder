@@ -3,28 +3,30 @@
 # Parameterized GCC 15 Cross-Toolchain Builder
 # Builds one cross-compiler per invocation.
 #
-# Sysroot stage uses the target CPU platform; the compile stage uses the host
-# (BUILDPLATFORM) so GCC/binutils in the tarball match the machine that runs
-# the builder image (avoids "not found" when an x86_64 tarball is used on arm64).
+# Sysroot stage uses the target CPU platform; the compile stage uses HOST_PLATFORM
+# (passed from the Makefile from uname) so GCC/binutils match the Docker host.
+# BUILDPLATFORM is not reliable on all BuildKit setups; explicit is better.
 #
 # Usage:
 #   docker buildx build -f toolchain/Dockerfile \
 #     --build-arg SYSROOT_IMAGE=gcc15-toolchain-sysroot-armhf \
 #     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
+#     --build-arg HOST_PLATFORM=linux/arm64 \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --target export \
 #     --output type=tar,dest=- . | gzip > artifacts/toolchain-armhf.tar.gz
 # ==========================================
+# All ARGs used in any FROM must appear before the first FROM (Dockerfile rule).
 
-ARG SYSROOT_IMAGE
-ARG SYSROOT_PLATFORM
+ARG SYSROOT_IMAGE=ubuntu:24.04
+ARG SYSROOT_PLATFORM=linux/amd64
+ARG HOST_PLATFORM=linux/amd64
+
 FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
-# ------------------------------------------
 # Main builder stage (native host arch)
-# ------------------------------------------
-FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS builder
+FROM --platform=${HOST_PLATFORM} ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV BUILD_DIR=/opt/toolchain-build

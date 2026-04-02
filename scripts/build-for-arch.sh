@@ -7,7 +7,17 @@ set -e
 ARCH=$1
 shift
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks (e.g. /usr/local/bin/build-for-arch.sh -> /opt/scripts/...)
+_script="${BASH_SOURCE[0]}"
+while [ -L "$_script" ]; do
+    _dir="$(cd -P "$(dirname "$_script")" && pwd)"
+    _link="$(readlink "$_script")"
+    case "$_link" in
+        /*) _script="$_link" ;;
+        *) _script="$_dir/$_link" ;;
+    esac
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_script")" && pwd)"
 CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
 
 if [ ! -f "$CONFIG_FILE" ] || [ ! -f "$SCRIPT_DIR/load-platform-config.sh" ]; then
