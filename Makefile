@@ -3,15 +3,16 @@
 # Builds cross-compilers and per-architecture builder images.
 #
 # Layers:
-#   1. sysroot-<arch>   – minimal target-platform filesystem (headers + libc)
-#   2. toolchain-<arch> – builds GCC cross-compiler, exports tar.gz archive
-#   3. builder-<arch>   – host image with toolchain installed + sysroot copied
+#   1a. toolchain-sysroot-<arch> – minimal sysroot for GCC build (old glibc)
+#   1b. builder-sysroot-<arch>   – target sysroot for builder (arbitrary base image)
+#   2.  toolchain-<arch>         – builds GCC cross-compiler, exports tar.gz archive
+#   3.  builder-<arch>           – host image with toolchain + sysroot + dependencies
 #
 # Examples:
-#   make all                 # build everything for all architectures
-#   make builder-armhf       # build only the armhf builder (and its deps)
-#   make toolchains          # build all toolchain archives
-#   make -j3 sysroots        # build all sysroots in parallel
+#   make all                 # build toolchains then builders for all architectures
+#   make builder-armhf       # build armhf builder (auto-builds toolchain if needed)
+#   make toolchains          # build all toolchain archives only
+#   make toolchain-armhf     # build one toolchain archive
 
 ARCHES        := armhf amd64 arm64
 IMAGE_PREFIX  := gcc15
@@ -26,33 +27,44 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: all sysroots toolchains builders clean
-.PHONY: sysroot-% toolchain-% builder-%
+.PHONY: all toolchains builders clean
+.PHONY: toolchain-sysroot-% builder-sysroot-% toolchain-% builder-%
 
-all: builders
+all: toolchains builders
 
-sysroots:   $(addprefix sysroot-,$(ARCHES))
 toolchains: $(addprefix toolchain-,$(ARCHES))
 builders:   $(addprefix builder-,$(ARCHES))
 
 # -------------------------------------------------------
-# Layer 1: Sysroot images
+# Layer 1a: Toolchain sysroot images (old glibc for GCC build)
 # -------------------------------------------------------
-sysroot-%:
+toolchain-sysroot-%:
 	docker build \
 		--platform=$(call platform,$*,platform) \
-		-f sysroots/$*.Dockerfile \
-		-t $(IMAGE_PREFIX)-sysroot-$* \
+		--build-arg BASE_IMAGE=$(call platform,$*,base_image) \
+		-f sysroots/Dockerfile \
+		-t $(IMAGE_PREFIX)-toolchain-sysroot-$* \
+		sysroots/
+
+# -------------------------------------------------------
+# Layer 1b: Builder sysroot images (arbitrary target platform)
+# -------------------------------------------------------
+builder-sysroot-%:
+	docker build \
+		--platform=$(call platform,$*,platform) \
+		--build-arg BASE_IMAGE=$(call platform,$*,builder_base_image) \
+		-f sysroots/Dockerfile \
+		-t $(IMAGE_PREFIX)-builder-sysroot-$* \
 		sysroots/
 
 # -------------------------------------------------------
 # Layer 2: Toolchain builds → tar.gz archives
 # -------------------------------------------------------
-toolchain-%: sysroot-%
+toolchain-%: toolchain-sysroot-%
 	mkdir -p $(ARTIFACTS_DIR)
 	docker buildx build \
 		-f toolchain/Dockerfile \
-		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-sysroot-$* \
+		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-toolchain-sysroot-$* \
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg BINUTILS_VERSION=$(BINUTILS_VERSION) \
@@ -62,11 +74,16 @@ toolchain-%: sysroot-%
 
 # -------------------------------------------------------
 # Layer 3: Per-architecture builder images
+# Builds toolchain automatically only if artifact is missing.
 # -------------------------------------------------------
-builder-%: toolchain-%
+builder-%: builder-sysroot-%
+	@if [ ! -f $(ARTIFACTS_DIR)/toolchain-$*.tar.gz ]; then \
+		echo "Toolchain artifact not found, building toolchain-$*..."; \
+		$(MAKE) toolchain-$*; \
+	fi
 	docker build \
 		-f builder/Dockerfile \
-		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-sysroot-$* \
+		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-builder-sysroot-$* \
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg TARGET=$(call platform,$*,target) \

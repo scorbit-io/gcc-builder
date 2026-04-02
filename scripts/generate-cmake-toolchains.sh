@@ -12,7 +12,7 @@ CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
 mkdir -p "$TOOLCHAIN_DIR"
 
 # Read all platforms from config and generate CMake files
-while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_flags rest; do
+while IFS='|' read -r arch target sysroot platform base_image builder_base_image cmake_proc cmake_flags rest; do
     # Skip comments and empty lines
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue

@@ -4,7 +4,7 @@
 #
 # Usage:
 #   docker buildx build -f toolchain/Dockerfile \
-#     --build-arg SYSROOT_IMAGE=gcc15-sysroot-armhf \
+#     --build-arg SYSROOT_IMAGE=gcc15-toolchain-sysroot-armhf \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --target export \

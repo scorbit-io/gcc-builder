@@ -1,7 +1,7 @@
 #!/bin/bash
 # Load platform configuration from platforms.conf
 # Usage: source load-platform-config.sh <arch_name>
-# Sets: ARCH_NAME, TARGET, SYSROOT_NAME, DOCKER_PLATFORM, BASE_IMAGE, CMAKE_PROCESSOR, CMAKE_FLAGS
+# Sets: ARCH_NAME, TARGET, SYSROOT_NAME, DOCKER_PLATFORM, BASE_IMAGE, BUILDER_BASE_IMAGE, CMAKE_PROCESSOR, CMAKE_FLAGS
 
 ARCH_NAME="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -13,7 +13,7 @@ if [ -z "$ARCH_NAME" ]; then
 fi
 
 # Read configuration
-while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_flags rest; do
+while IFS='|' read -r arch target sysroot platform base_image builder_base_image cmake_proc cmake_flags rest; do
     # Skip comments and empty lines
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue
@@ -24,6 +24,7 @@ while IFS='|' read -r arch target sysroot platform base_image cmake_proc cmake_f
         export SYSROOT_NAME="$sysroot"
         export DOCKER_PLATFORM="$platform"
         export BASE_IMAGE="$base_image"
+        export BUILDER_BASE_IMAGE="$builder_base_image"
         export CMAKE_PROCESSOR="$cmake_proc"
         export CMAKE_FLAGS="$cmake_flags"
         return 0 2>/dev/null || exit 0

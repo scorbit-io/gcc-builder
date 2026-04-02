@@ -13,7 +13,7 @@ if [ -z "$ARCH_NAME" ] || [ -z "$OPENSSL_DIR" ]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/load-platform-config.sh" "$ARCH_NAME"
+source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$OPENSSL_DIR"
 
