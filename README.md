@@ -45,6 +45,46 @@ make builder-armhf
 make clean
 ```
 
+## Using the builder image
+
+The builder image is pre-configured for cross-compilation. The cross-compiler
+and binutils are on `PATH`; environment variables (`CC`, `CXX`, `AR`, etc.)
+are set automatically.
+
+### CMake
+
+```bash
+cmake -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -Bbuild .
+cmake --build build
+```
+
+The toolchain file includes all compiler/binutils paths, sysroot, dependency
+search paths, and arch-specific linker flags (e.g. `-latomic` for armhf).
+
+### Autotools
+
+```bash
+./configure --host=$CROSS_TARGET
+make
+```
+
+### Direct compilation
+
+```bash
+$CC hello.c -o hello
+```
+
+### Key environment variables
+
+| Variable               | Example value                                  |
+|------------------------|------------------------------------------------|
+| `CROSS_TARGET`         | `arm-linux-gnueabihf`                          |
+| `CC`                   | `arm-linux-gnueabihf-gcc`                      |
+| `CXX`                  | `arm-linux-gnueabihf-g++`                      |
+| `SYSROOT`              | `/opt/sysroot-armhf`                           |
+| `DEPS_PREFIX`          | `/opt/deps-armhf`                              |
+| `CMAKE_TOOLCHAIN_FILE` | `/opt/toolchain/armhf.cmake`                   |
+
 ## Build layers in detail
 
 ### 1. Sysroot images
@@ -79,9 +119,6 @@ The toolchain tarball contains **host-native** GCC/binutils (e.g. linux/arm64 on
 Apple Silicon). If you see `...-gcc: not found` inside the builder, delete the
 matching artifact under `artifacts/` and run `make toolchain-<arch>` again on
 this host so the compiler matches your machine.
-
-The builder image includes CMake, Ninja, and cross-compiled libraries:
-Boost, OpenSSL, libpsl, libcurl, libarchive.
 
 ## Configuration
 

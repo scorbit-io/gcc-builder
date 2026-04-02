@@ -27,10 +27,13 @@ fi
 
 source "$SCRIPT_DIR/load-platform-config.sh" "$ARCH"
 
-export CC=/opt/wrappers/${ARCH_NAME}-gcc
-export CXX=/opt/wrappers/${ARCH_NAME}-g++
-export AR=/opt/cross/$TARGET/bin/$TARGET-ar
-export RANLIB=/opt/cross/$TARGET/bin/$TARGET-ranlib
+export CC=$TARGET-gcc
+export CXX=$TARGET-g++
+export AR=$TARGET-ar
+export RANLIB=$TARGET-ranlib
+export STRIP=$TARGET-strip
+export NM=$TARGET-nm
+export LD=$TARGET-ld
 export SYSROOT=/opt/$SYSROOT_NAME
 export PREFIX=/opt/deps-${ARCH_NAME}
 export HOST=$TARGET

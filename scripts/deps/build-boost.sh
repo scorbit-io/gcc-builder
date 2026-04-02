@@ -18,7 +18,7 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 cd "$BOOST_DIR"
 
 # Generate user-config.jam
-echo "using gcc : ${ARCH_NAME} : /opt/wrappers/${ARCH_NAME}-g++ ;" > user-config.jam
+echo "using gcc : ${ARCH_NAME} : /opt/cross/${TARGET}/bin/${TARGET}-g++ ;" > user-config.jam
 
 # Build Boost
 ./b2 -j$(nproc) \

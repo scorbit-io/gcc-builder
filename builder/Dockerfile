@@ -8,9 +8,6 @@
 # Docker layers are ordered so that changing the sysroot base image
 # does NOT invalidate the toolchain layer.
 #
-# Sysroot stage uses the target CPU platform; the main image uses HOST_PLATFORM
-# (from the Makefile) so host tools and the extracted toolchain match the host.
-#
 # Usage:
 #   docker buildx build --load --platform=linux/arm64 -f builder/Dockerfile \
 #     --build-arg SYSROOT_IMAGE=gcc15-builder-sysroot-armhf \
@@ -21,7 +18,7 @@
 #     --build-arg TARGET=arm-linux-gnueabihf \
 #     -t gcc15-builder-armhf .
 # ==========================================
-# All ARGs used in any FROM must appear before the first FROM (Dockerfile rule).
+# All ARGs used in any FROM must appear before the first FROM.
 
 ARG SYSROOT_IMAGE=ubuntu:24.04
 ARG SYSROOT_PLATFORM=linux/amd64
@@ -86,6 +83,9 @@ RUN if ! test -x "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; then \
         exit 1; \
     fi
 
+# Put cross-compiler on PATH (needed by dep build scripts)
+ENV PATH=/opt/cross/${TARGET}/bin:$PATH
+
 # ------------------------------------------
 # Install sysroot (invalidated when sysroot base image changes)
 # ------------------------------------------
@@ -111,21 +111,15 @@ COPY scripts/ /opt/scripts/
 COPY platforms.conf /opt/platforms.conf
 RUN chmod +x /opt/scripts/*.sh /opt/scripts/deps/*.sh
 
-# Generate wrapper scripts and CMake toolchain files
-RUN /opt/scripts/generate-wrappers.sh /opt/wrappers ${ARCH_NAME}
+# Generate CMake toolchain file (includes deps paths, -latomic for armhf, all tool paths)
 RUN /opt/scripts/generate-cmake-toolchains.sh /opt/toolchain ${ARCH_NAME}
-
-ENV PATH=/opt/wrappers:$PATH
 
 RUN ln -s /opt/scripts/build-for-arch.sh /usr/local/bin/build-for-arch.sh
 
-# Update CMake toolchain files with dependency paths
-RUN /opt/scripts/update-cmake-toolchains.sh /opt/toolchain ${ARCH_NAME}
-
-# Verify toolchain works
+# Verify cross-compilation works
 RUN echo '#include <stdio.h>' > /tmp/test.c && \
     echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c && \
-    /opt/wrappers/${ARCH_NAME}-gcc /tmp/test.c -o /tmp/test && \
+    ${TARGET}-gcc --sysroot=/opt/${SYSROOT_NAME} /tmp/test.c -o /tmp/test && \
     file /tmp/test && \
     rm /tmp/test.c /tmp/test
 
@@ -141,7 +135,6 @@ RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-no
 
 RUN cd $BOOST && ./bootstrap.sh
 
-# build-boost.sh already cd's into BOOST_DIR; run from parent of the tree (same as tar extract dir)
 RUN /opt/scripts/deps/build-boost.sh "${ARCH_NAME}" "${BOOST}" \
     && rm -rf $BOOST
 
@@ -185,12 +178,29 @@ RUN /opt/scripts/deps/build-libarchive.sh "${ARCH_NAME}" "${LIBARCHIVE}" \
     && rm -rf $LIBARCHIVE
 
 # ------------------------------------------
-# Summary
+# Cross-compilation environment for interactive use.
+# Set AFTER dep builds so native helper tools (b2, etc.) are not affected.
+#
+# With these defaults:
+#   ./configure --host=$CROSS_TARGET && make    (autotools)
+#   cmake -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -Bbuild . && cmake --build build
+#   $CC hello.c -o hello
 # ------------------------------------------
-RUN echo "Builder ready for ${ARCH_NAME}:" && \
-    echo "  Sysroot:   /opt/${SYSROOT_NAME}" && \
-    echo "  Deps:      /opt/deps-${ARCH_NAME}" && \
-    echo "  Toolchain: /opt/toolchain/${ARCH_NAME}.cmake"
+ENV CROSS_TARGET=${TARGET}
+ENV SYSROOT=/opt/${SYSROOT_NAME}
+ENV DEPS_PREFIX=/opt/deps-${ARCH_NAME}
+ENV CMAKE_TOOLCHAIN_FILE=/opt/toolchain/${ARCH_NAME}.cmake
+ENV CC=${TARGET}-gcc
+ENV CXX=${TARGET}-g++
+ENV AR=${TARGET}-ar
+ENV RANLIB=${TARGET}-ranlib
+ENV STRIP=${TARGET}-strip
+ENV NM=${TARGET}-nm
+ENV LD=${TARGET}-ld
+ENV OBJCOPY=${TARGET}-objcopy
+ENV OBJDUMP=${TARGET}-objdump
+ENV PKG_CONFIG_PATH=/opt/deps-${ARCH_NAME}/lib/pkgconfig
+ENV PKG_CONFIG_SYSROOT_DIR=/opt/${SYSROOT_NAME}
 
 WORKDIR /wrk
 
