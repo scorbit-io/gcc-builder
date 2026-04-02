@@ -4,7 +4,7 @@ Multi-architecture GCC 15 cross-compilation toolchain targeting:
 
 | Arch  | Triple                  | Toolchain Sysroot      | Builder Sysroot  |
 |-------|-------------------------|------------------------|------------------|
-| armhf | arm-linux-gnueabihf     | Ubuntu 12.04 (armv7)   | Ubuntu 12.04     |
+| armhf | arm-linux-gnueabihf     | Ubuntu 12.04 (armv7)   | Ubuntu 20.04     |
 | amd64 | x86_64-linux-gnu        | Ubuntu 14.04 (amd64)   | Ubuntu 20.04     |
 | arm64 | aarch64-linux-gnu       | Ubuntu 14.04 (arm64)   | Ubuntu 20.04     |
 
@@ -71,9 +71,14 @@ Toolchain sysroot docker images can be removed after this step.
 make builder-armhf    # → gcc15-builder-armhf
 ```
 
-If `artifacts/toolchain-armhf.tar.gz` exists, the toolchain is not rebuilt.
-Changing `BUILDER_BASE_IMAGE` in `platforms.conf` and re-running only
-rebuilds the sysroot and dependency layers — the toolchain layer is cached.
+If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
+Changing `BUILDER_BASE_IMAGE` in `platforms.conf` and re-running only rebuilds the
+sysroot and dependency layers — the toolchain layer stays cached.
+
+The toolchain tarball contains **host-native** GCC/binutils (e.g. linux/arm64 on
+Apple Silicon). If you see `...-gcc: not found` inside the builder, delete the
+matching artifact under `artifacts/` and run `make toolchain-<arch>` again on
+this host so the compiler matches your machine.
 
 The builder image includes CMake, Ninja, and cross-compiled libraries:
 Boost, OpenSSL, libpsl, libcurl, libarchive.

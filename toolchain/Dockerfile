@@ -1,10 +1,16 @@
+# syntax=docker/dockerfile:1
 # ==========================================
 # Parameterized GCC 15 Cross-Toolchain Builder
 # Builds one cross-compiler per invocation.
 #
+# Sysroot stage uses the target CPU platform; the compile stage uses the host
+# (BUILDPLATFORM) so GCC/binutils in the tarball match the machine that runs
+# the builder image (avoids "not found" when an x86_64 tarball is used on arm64).
+#
 # Usage:
 #   docker buildx build -f toolchain/Dockerfile \
 #     --build-arg SYSROOT_IMAGE=gcc15-toolchain-sysroot-armhf \
+#     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --target export \
@@ -12,12 +18,13 @@
 # ==========================================
 
 ARG SYSROOT_IMAGE
-FROM ${SYSROOT_IMAGE} AS sysroot
+ARG SYSROOT_PLATFORM
+FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
 # ------------------------------------------
-# Main builder stage
+# Main builder stage (native host arch)
 # ------------------------------------------
-FROM ubuntu:24.04 AS builder
+FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV BUILD_DIR=/opt/toolchain-build

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Parameterized Sysroot Image
 # Installs minimal target-platform headers and libraries.
 # Used for both toolchain builds (old glibc) and builder images (arbitrary target).
@@ -7,7 +8,7 @@
 #     --build-arg BASE_IMAGE=ubuntu:20.04 \
 #     -f sysroots/Dockerfile -t gcc15-builder-sysroot-armhf sysroots/
 
-ARG BASE_IMAGE
+ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE}
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

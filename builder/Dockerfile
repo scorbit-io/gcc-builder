@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ==========================================
 # Per-Architecture Builder Image
 #
@@ -7,9 +8,13 @@
 # Docker layers are ordered so that changing the sysroot base image
 # does NOT invalidate the toolchain layer.
 #
+# Sysroot stage uses the target CPU platform; the main image uses BUILDPLATFORM
+# so host tools and the extracted toolchain match the builder host.
+#
 # Usage:
-#   docker build -f builder/Dockerfile \
+#   docker buildx build --load -f builder/Dockerfile \
 #     --build-arg SYSROOT_IMAGE=gcc15-builder-sysroot-armhf \
+#     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --build-arg TARGET=arm-linux-gnueabihf \
@@ -17,9 +22,10 @@
 # ==========================================
 
 ARG SYSROOT_IMAGE
-FROM ${SYSROOT_IMAGE} AS sysroot
+ARG SYSROOT_PLATFORM
+FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
-FROM ubuntu:24.04
+FROM --platform=$BUILDPLATFORM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 

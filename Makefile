@@ -65,6 +65,7 @@ toolchain-%: toolchain-sysroot-%
 	docker buildx build \
 		-f toolchain/Dockerfile \
 		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-toolchain-sysroot-$* \
+		--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg BINUTILS_VERSION=$(BINUTILS_VERSION) \
@@ -81,9 +82,10 @@ builder-%: builder-sysroot-%
 		echo "Toolchain artifact not found, building toolchain-$*..."; \
 		$(MAKE) toolchain-$*; \
 	fi
-	docker build \
+	docker buildx build --load \
 		-f builder/Dockerfile \
 		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-builder-sysroot-$* \
+		--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg TARGET=$(call platform,$*,target) \
