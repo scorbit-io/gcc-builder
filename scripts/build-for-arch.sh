@@ -42,6 +42,10 @@ export CMAKE_TOOLCHAIN=/opt/toolchain/${ARCH_NAME}.cmake
 export CFLAGS="--sysroot=$SYSROOT -fPIC"
 export CXXFLAGS="--sysroot=$SYSROOT -fPIC"
 export LDFLAGS="--sysroot=$SYSROOT -L$PREFIX/lib"
+# Static libatomic: avoids runtime libatomic.so on minimal/old armhf targets
+if [ "$ARCH_NAME" = "armhf" ]; then
+    export LDFLAGS="$LDFLAGS -Wl,-Bstatic -latomic -Wl,-Bdynamic"
+fi
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"

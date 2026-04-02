@@ -202,6 +202,14 @@ ENV OBJDUMP=${TARGET}-objdump
 ENV PKG_CONFIG_PATH=/opt/deps-${ARCH_NAME}/lib/pkgconfig
 ENV PKG_CONFIG_SYSROOT_DIR=/opt/${SYSROOT_NAME}
 
+# armhf: link libatomic statically (targets without libatomic.so, e.g. old Ubuntu on device)
+RUN if [ "${ARCH_NAME}" = "armhf" ]; then \
+      printf '%s\n' \
+        '# gcc15-builder: static libatomic; keep glibc/pthread dynamic' \
+        'export LDFLAGS="${LDFLAGS:+$LDFLAGS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"' \
+        > /etc/profile.d/gcc15-armhf-libatomic.sh; \
+    fi
+
 WORKDIR /wrk
 
 CMD ["/bin/bash"]

@@ -53,13 +53,14 @@ set(CMAKE_CXX_FLAGS_INIT "$cmake_flags")
 EOF
     fi
 
-    # armhf needs -latomic for 64-bit atomic operations
+    # armhf needs libatomic for 64-bit atomics. Link it statically so binaries run
+    # on targets without libatomic.so (e.g. older Ubuntu/arm boards); libc/pthread stay dynamic.
     if [ "$arch" = "armhf" ]; then
         cat >> "$CMAKE_FILE" <<'EOF'
 
-set(CMAKE_EXE_LINKER_FLAGS_INIT "-latomic")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-latomic")
-set(CMAKE_MODULE_LINKER_FLAGS_INIT "-latomic")
+set(CMAKE_EXE_LINKER_FLAGS_INIT "-Wl,-Bstatic -latomic -Wl,-Bdynamic")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-Wl,-Bstatic -latomic -Wl,-Bdynamic")
+set(CMAKE_MODULE_LINKER_FLAGS_INIT "-Wl,-Bstatic -latomic -Wl,-Bdynamic")
 EOF
     fi
 
