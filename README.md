@@ -22,8 +22,8 @@ Two separate sysroot images are built per architecture:
 
 - **Toolchain sysroot** (`BASE_IMAGE` in `platforms.conf`) — old Ubuntu for building GCC
   against a low glibc. Can be deleted after the toolchain artifact is produced.
-- **Builder sysroot** (`BUILDER_BASE_IMAGE` in `platforms.conf`) — arbitrary target
-  platform (e.g. Ubuntu 20.04). Used in the builder image for cross-compilation.
+- **Builder sysroot** (`BUILDER_SYSROOT_DOCKERFILE` in `platforms.conf`) — per-arch
+  Dockerfile in `builder-sysroots/`. Used in the builder image for cross-compilation.
 
 Library build scripts live in `scripts/deps/` and are executed inside the builder image.
 
@@ -131,8 +131,8 @@ make builder-armhf    # → gcc15-builder-armhf
 ```
 
 If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
-Changing `BUILDER_BASE_IMAGE` in `platforms.conf` and re-running only rebuilds the
-sysroot and dependency layers — the toolchain layer stays cached.
+Changing the builder sysroot Dockerfile and re-running only rebuilds the sysroot
+and dependency layers — the toolchain layer stays cached.
 
 The toolchain tarball contains **host-native** GCC/binutils (e.g. linux/arm64 on
 Apple Silicon). If you see `...-gcc: not found` inside the builder, delete the
@@ -144,12 +144,12 @@ this host so the compiler matches your machine.
 Edit `platforms.conf` to add or modify target architectures:
 
 ```
-# ARCH_NAME|TARGET_TRIPLET|SYSROOT_NAME|DOCKER_PLATFORM|BASE_IMAGE|BUILDER_BASE_IMAGE|CMAKE_PROCESSOR|CMAKE_FLAGS
-armhf|arm-linux-gnueabihf|sysroot-armhf|linux/arm/v7|dilshodm/ubuntu:12.04|ubuntu:20.04|arm|-march=armv7-a ...
+# ARCH_NAME|TARGET_TRIPLET|SYSROOT_NAME|DOCKER_PLATFORM|BASE_IMAGE|BUILDER_SYSROOT_DOCKERFILE|CMAKE_PROCESSOR|CMAKE_FLAGS
+armhf|arm-linux-gnueabihf|sysroot-armhf|linux/arm/v7|dilshodm/ubuntu:12.04|builder-sysroots/Dockerfile.ubuntu12|arm|-march=armv7-a ...
 ```
 
 - `BASE_IMAGE` — base for the toolchain sysroot (old glibc for compatibility)
-- `BUILDER_BASE_IMAGE` — base for the builder sysroot (arbitrary target platform)
+- `BUILDER_SYSROOT_DOCKERFILE` — Dockerfile that produces the builder sysroot image
 
 ## Host platform
 

@@ -14,7 +14,7 @@ CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
 
 mkdir -p "$TOOLCHAIN_DIR"
 
-while IFS='|' read -r arch target sysroot platform base_image builder_base_image cmake_proc cmake_flags rest; do
+while IFS='|' read -r arch target sysroot platform base_image builder_sysroot_dockerfile cmake_proc cmake_flags rest; do
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue
     [ -n "$ARCH_FILTER" ] && [ "$arch" != "$ARCH_FILTER" ] && continue

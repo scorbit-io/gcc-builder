@@ -62,15 +62,14 @@ toolchain-sysroot-%:
 		sysroots/
 
 # -------------------------------------------------------
-# Layer 1b: Builder sysroot images (arbitrary target platform)
+# Layer 1b: Builder sysroot images (per-arch Dockerfile)
 # -------------------------------------------------------
 builder-sysroot-%:
 	docker build \
 		--platform=$(call platform,$*,platform) \
-		--build-arg BASE_IMAGE=$(call platform,$*,builder_base_image) \
-		-f sysroots/Dockerfile \
+		-f $(call platform,$*,builder_sysroot_dockerfile) \
 		-t $(IMAGE_PREFIX)-builder-sysroot-$* \
-		sysroots/
+		builder-sysroots/
 
 # -------------------------------------------------------
 # Layer 2: Toolchain builds → tar.gz archives

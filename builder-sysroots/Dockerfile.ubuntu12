@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+# Builder sysroot for ARMv7 (armhf)
+# Provides target-platform headers and libraries for cross-compilation.
+
+FROM dilshodm/ubuntu:12.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libc6-dev \
+    linux-libc-dev \
+    libcap-dev \
+    libusb-1.0-0-dev \
+    && rm -rf /var/lib/apt/lists/*
