@@ -59,10 +59,15 @@ cmake --build build
 ```
 
 The toolchain file includes all compiler/binutils paths, sysroot, dependency
-search paths, and for **armhf** appends **static libatomic** via
+search paths, **`-static-libgcc`** for C and **`-static-libstdc++ -static-libgcc`**
+for C++ (glibc stays dynamic), and for **armhf** appends **static libatomic** via
 `CMAKE_*_STANDARD_LIBRARIES` so it appears **after** static archives such as
 `libcrypto.a` (link order matters). Binaries then do not need `libatomic.so` on
-the device. libc and pthread stay dynamically linked.
+the device.
+
+The image also sets `CFLAGS` / `CXXFLAGS` to the same static-lib defaults for
+plain `gcc` / `g++` invocations. Override or clear them if you need fully
+dynamic C++ runtime.
 
 For **autotools** in the armhf image, `/etc/profile.d/gcc15-armhf-libatomic.sh`
 sets `LIBS` (appended last by `configure`/`make`), not `LDFLAGS`. For a one-off
@@ -93,6 +98,8 @@ $CC hello.c -o hello
 | `SYSROOT`              | `/opt/sysroot-armhf`                           |
 | `DEPS_PREFIX`          | `/opt/deps-armhf`                              |
 | `CMAKE_TOOLCHAIN_FILE` | `/opt/toolchain/armhf.cmake`                   |
+| `CFLAGS`               | `-static-libgcc`                               |
+| `CXXFLAGS`             | `-static-libstdc++ -static-libgcc`           |
 
 ## Build layers in detail
 

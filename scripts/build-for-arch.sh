@@ -39,8 +39,8 @@ export PREFIX=/opt/deps-${ARCH_NAME}
 export HOST=$TARGET
 export CMAKE_TOOLCHAIN=/opt/toolchain/${ARCH_NAME}.cmake
 
-export CFLAGS="--sysroot=$SYSROOT -fPIC"
-export CXXFLAGS="--sysroot=$SYSROOT -fPIC"
+export CFLAGS="--sysroot=$SYSROOT -fPIC -static-libgcc"
+export CXXFLAGS="--sysroot=$SYSROOT -fPIC -static-libstdc++ -static-libgcc"
 export LDFLAGS="--sysroot=$SYSROOT -L$PREFIX/lib"
 # Static libatomic last on link line (autotools appends LIBS after objects). Same ordering issue as CMake.
 if [ "$ARCH_NAME" = "armhf" ]; then

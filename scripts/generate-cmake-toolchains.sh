@@ -53,6 +53,13 @@ set(CMAKE_CXX_FLAGS_INIT "$cmake_flags")
 EOF
     fi
 
+    # Link libgcc (and for C++, libstdc++) into the binary; glibc stays dynamic.
+    cat >> "$CMAKE_FILE" <<'EOF'
+
+string(APPEND CMAKE_C_FLAGS_INIT " -static-libgcc")
+string(APPEND CMAKE_CXX_FLAGS_INIT " -static-libstdc++ -static-libgcc")
+EOF
+
     # armhf: static libatomic, after static archives (e.g. libcrypto.a) on the link line.
     # Putting -latomic in *_LINKER_FLAGS_INIT runs it too early; unresolved __atomic_* from .a then fail.
     if [ "$arch" = "armhf" ]; then
