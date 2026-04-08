@@ -202,8 +202,8 @@ ENV OBJDUMP=${TARGET}-objdump
 ENV PKG_CONFIG_PATH=/opt/deps-${ARCH_NAME}/lib/pkgconfig
 ENV PKG_CONFIG_SYSROOT_DIR=/opt/${SYSROOT_NAME}
 # Match toolchain file: static libgcc / libstdc++ (libc still dynamic)
-ENV CFLAGS=-static-libgcc
-ENV CXXFLAGS=-static-libstdc++ -static-libgcc
+ENV CFLAGS="-static-libgcc"
+ENV CXXFLAGS="-static-libstdc++ -static-libgcc"
 
 # armhf: link libatomic statically (targets without libatomic.so, e.g. old Ubuntu on device)
 RUN if [ "${ARCH_NAME}" = "armhf" ]; then \
