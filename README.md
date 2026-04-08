@@ -31,6 +31,10 @@ All architecture parameters are driven by `platforms.conf`.
 
 ## Quick start
 
+Create a `DOCKER_RELEASE` file (one line, e.g. `12`) or pass `DOCKER_RELEASE=12` on the
+`make` command line. That value becomes the tag suffix on published builder images
+(`dilshodm/ubuntu-builder-arm:12.04_12`, and so on).
+
 ```bash
 # Build everything for all architectures
 make all
@@ -126,8 +130,13 @@ Toolchain sysroot docker images can be removed after this step.
 
 ### 3. Builder images
 
+Published tags use `DOCKER_RELEASE` (file `DOCKER_RELEASE` or `make DOCKER_RELEASE=…`)
+as the suffix after the Ubuntu version, for example `12.04_12` when `DOCKER_RELEASE` is `12`.
+
 ```bash
-make builder-armhf    # → gcc15-builder-armhf
+make builder-armhf    # → dilshodm/ubuntu-builder-arm:12.04_<release>  (+ gcc15-builder-armhf alias)
+make builder-amd64    # → dilshodm/ubuntu-builder-amd64:20.04_<release> (+ gcc15-builder-amd64)
+make builder-arm64    # → dilshodm/ubuntu-builder-arm64:20.04_<release> (+ gcc15-builder-arm64)
 ```
 
 If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.

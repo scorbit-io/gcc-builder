@@ -18,6 +18,18 @@ ARCHES        := armhf amd64 arm64
 IMAGE_PREFIX  := gcc15
 ARTIFACTS_DIR := artifacts
 
+# Suffix for published builder tags, e.g. dilshodm/ubuntu-builder-arm:12.04_12
+DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
+DOCKER_RELEASE      ?= $(shell tr -d ' \t\n\r' < $(DOCKER_RELEASE_FILE) 2>/dev/null)
+ifeq ($(DOCKER_RELEASE),)
+$(error Set DOCKER_RELEASE=… on the command line, or create $(DOCKER_RELEASE_FILE) with the tag suffix)
+endif
+
+# Final docker image names (Ubuntu version matches toolchain / builder sysroot base)
+BUILDER_TAG_armhf := dilshodm/ubuntu-builder-arm:12.04_$(DOCKER_RELEASE)
+BUILDER_TAG_amd64 := dilshodm/ubuntu-builder-amd64:20.04_$(DOCKER_RELEASE)
+BUILDER_TAG_arm64 := dilshodm/ubuntu-builder-arm64:20.04_$(DOCKER_RELEASE)
+
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
 
@@ -113,6 +125,7 @@ builder-%: builder-sysroot-%
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg TARGET=$(call platform,$*,target) \
+		-t $(BUILDER_TAG_$*) \
 		-t $(IMAGE_PREFIX)-builder-$* \
 		.
 
