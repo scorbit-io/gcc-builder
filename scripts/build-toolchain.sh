@@ -64,6 +64,18 @@ rm -rf "binutils-${ARCH_NAME}"
 # Build GCC
 mkdir -p "gcc-${ARCH_NAME}"
 cd "gcc-${ARCH_NAME}"
+
+# Set default architecture so libstdc++ is compiled with the right ISA level.
+# Without this, arm-linux-gnueabihf defaults to ARMv5TE where
+# ATOMIC_INT_LOCK_FREE==1, causing futex/atomic code to be omitted from
+# libstdc++.a — but user code compiled with -march=armv7-a expects it.
+EXTRA_GCC_OPTS=""
+case "$ARCH_NAME" in
+    armhf)
+        EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=neon-vfpv4 --with-float=hard"
+        ;;
+esac
+
 CPPFLAGS="-I/usr/include/$(gcc -dumpmachine)" \
 LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
 ../gcc-${GCC_VERSION}/configure \
@@ -84,7 +96,8 @@ LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
     --with-isl=/usr \
     --disable-libsanitizer \
     --disable-werror \
-    --with-build-time-tools="$PREFIX/$TARGET/bin"
+    --with-build-time-tools="$PREFIX/$TARGET/bin" \
+    $EXTRA_GCC_OPTS
 make -j$(nproc)
 make install-strip
 cd "$BUILD_DIR"
