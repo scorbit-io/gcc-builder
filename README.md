@@ -58,6 +58,10 @@ cmake -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -Bbuild .
 cmake --build build
 ```
 
+CMake does **not** read `CMAKE_TOOLCHAIN_FILE` from the environment; you must
+pass **`-DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE`** on the **`cmake`**
+command line so nested `FetchContent` / CPM projects inherit cross settings.
+
 The toolchain file includes all compiler/binutils paths, sysroot, dependency
 search paths, **`-static-libgcc`** for C and **`-static-libstdc++ -static-libgcc`**
 for C++ (glibc stays dynamic), and for **armhf** appends **static libatomic** via
@@ -96,7 +100,6 @@ $CC hello.c -o hello
 | `CC`                   | `arm-linux-gnueabihf-gcc`                      |
 | `CXX`                  | `arm-linux-gnueabihf-g++`                      |
 | `SYSROOT`              | `/opt/sysroot-armhf`                           |
-| `DEPS_PREFIX`          | `/opt/deps-armhf`                              |
 | `CMAKE_TOOLCHAIN_FILE` | `/opt/toolchain/armhf.cmake`                   |
 | `CFLAGS`               | `-static-libgcc`                               |
 | `CXXFLAGS`             | `-static-libstdc++ -static-libgcc`           |

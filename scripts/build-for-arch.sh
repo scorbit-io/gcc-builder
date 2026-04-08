@@ -35,21 +35,22 @@ export STRIP=$TARGET-strip
 export NM=$TARGET-nm
 export LD=$TARGET-ld
 export SYSROOT=/opt/$SYSROOT_NAME
-export PREFIX=/opt/deps-${ARCH_NAME}
+export PREFIX=/usr/local
+export DESTDIR=$SYSROOT
 export HOST=$TARGET
 export CMAKE_TOOLCHAIN=/opt/toolchain/${ARCH_NAME}.cmake
 
 export CFLAGS="--sysroot=$SYSROOT -fPIC -static-libgcc"
 export CXXFLAGS="--sysroot=$SYSROOT -fPIC -static-libstdc++ -static-libgcc"
-export LDFLAGS="--sysroot=$SYSROOT -L$PREFIX/lib"
+export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/local/lib"
 # Static libatomic last on link line (autotools appends LIBS after objects). Same ordering issue as CMake.
 if [ "$ARCH_NAME" = "armhf" ]; then
     export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"
 fi
-export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
-export PKG_CONFIG_LIBDIR="$PREFIX/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
+export PKG_CONFIG_PATH="$SYSROOT/usr/local/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="$SYSROOT/usr/local/lib/pkgconfig:$SYSROOT/usr/lib/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="$SYSROOT"
 
-mkdir -p $PREFIX
+mkdir -p "$DESTDIR$PREFIX"
 
 exec "$@"

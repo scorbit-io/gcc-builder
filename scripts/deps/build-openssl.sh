@@ -34,15 +34,17 @@ case "$ARCH_NAME" in
         ;;
 esac
 
+SYSROOT="/opt/${SYSROOT_NAME}"
+
 # Build OpenSSL using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
     ./Configure "$CONFIG_NAME" \
-        --prefix=/opt/deps-${ARCH_NAME} \
-        --openssldir=/opt/deps-${ARCH_NAME}/ssl \
+        --prefix=/usr/local \
+        --openssldir=/usr/local/ssl \
         no-apps no-shared no-pinshared no-dso no-engine
 
 make -j$(nproc)
-make install_sw
+make install_sw DESTDIR="$SYSROOT"
 make clean
 
 echo "OpenSSL built successfully for $ARCH_NAME"

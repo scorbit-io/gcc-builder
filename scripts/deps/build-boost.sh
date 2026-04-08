@@ -17,20 +17,22 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$BOOST_DIR"
 
+SYSROOT="/opt/${SYSROOT_NAME}"
+
 # Generate user-config.jam
 echo "using gcc : ${ARCH_NAME} : /opt/cross/${TARGET}/bin/${TARGET}-g++ ;" > user-config.jam
 
-# Build Boost
+# Build Boost (b2 has no DESTDIR; install directly into sysroot)
 ./b2 -j$(nproc) \
     --user-config=user-config.jam \
-    --prefix=/opt/deps-${ARCH_NAME} \
+    --prefix="${SYSROOT}/usr/local" \
     toolset=gcc-${ARCH_NAME} \
     target-os=linux \
     threading=multi \
     link=static \
-    cflags="--sysroot=/opt/${SYSROOT_NAME} -fPIC" \
-    cxxflags="--sysroot=/opt/${SYSROOT_NAME} -fPIC" \
-    linkflags="--sysroot=/opt/${SYSROOT_NAME}" \
+    cflags="--sysroot=${SYSROOT} -fPIC" \
+    cxxflags="--sysroot=${SYSROOT} -fPIC" \
+    linkflags="--sysroot=${SYSROOT}" \
     --without-python \
     install
 

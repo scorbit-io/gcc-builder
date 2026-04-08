@@ -17,14 +17,16 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$LIBARCHIVE_DIR"
 
+SYSROOT="/opt/${SYSROOT_NAME}"
+
 # Build libarchive using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
-    ./configure --host="$TARGET" --prefix=/opt/deps-${ARCH_NAME} \
+    ./configure --host="$TARGET" --prefix=/usr/local \
                 --with-openssl --disable-shared \
-                LDFLAGS="--sysroot=/opt/${SYSROOT_NAME} -L/opt/deps-${ARCH_NAME}/lib"
+                LDFLAGS="--sysroot=${SYSROOT} -L${SYSROOT}/usr/local/lib"
 
 make -j$(nproc)
-make install
+make install DESTDIR="$SYSROOT"
 
 echo "libarchive built successfully for $ARCH_NAME"
 

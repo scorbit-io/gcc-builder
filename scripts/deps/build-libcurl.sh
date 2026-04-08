@@ -17,13 +17,14 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$CURL_DIR"
 
+SYSROOT="/opt/${SYSROOT_NAME}"
+
 # Build libcurl using CMake
 build-for-arch.sh "$ARCH_NAME" \
     cmake -GNinja -Bbuild-${ARCH_NAME} \
         -DCMAKE_TOOLCHAIN_FILE=/opt/toolchain/${ARCH_NAME}.cmake \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/opt/deps-${ARCH_NAME} \
-        -DCMAKE_PREFIX_PATH=/opt/deps-${ARCH_NAME} \
+        -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DBUILD_SHARED_LIBS=OFF \
         -DBUILD_CURL_EXE=OFF \
@@ -32,11 +33,10 @@ build-for-arch.sh "$ARCH_NAME" \
         -DCURL_CA_PATH=none \
         -DCURL_CA_BUNDLE=none \
         -DCURL_USE_OPENSSL=ON \
-        -DOPENSSL_ROOT_DIR=/opt/deps-${ARCH_NAME} \
         .
 
 cmake --build build-${ARCH_NAME} --parallel
-cmake --build build-${ARCH_NAME} --target install
+DESTDIR="$SYSROOT" cmake --build build-${ARCH_NAME} --target install
 
 echo "libcurl built successfully for $ARCH_NAME"
 

@@ -79,10 +79,14 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-# Cross-compiled dependency paths
-list(APPEND CMAKE_PREFIX_PATH /opt/deps-$arch)
-list(APPEND CMAKE_FIND_ROOT_PATH /opt/deps-$arch)
-set(ENV{PKG_CONFIG_PATH} "/opt/deps-$arch/lib/pkgconfig")
+# /usr/local is not in the linker's default sysroot search path; add it so bare
+# -lpsl / -lssl / etc. flags resolve to <sysroot>/usr/local/lib.
+string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT    " -L\${CMAKE_SYSROOT}/usr/local/lib")
+string(APPEND CMAKE_SHARED_LINKER_FLAGS_INIT " -L\${CMAKE_SYSROOT}/usr/local/lib")
+string(APPEND CMAKE_MODULE_LINKER_FLAGS_INIT " -L\${CMAKE_SYSROOT}/usr/local/lib")
+
+set(ENV{PKG_CONFIG_PATH}        "\${CMAKE_SYSROOT}/usr/local/lib/pkgconfig")
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "\${CMAKE_SYSROOT}")
 
 # Skip compiler tests (cross-compiled binaries cannot run on host)
 set(CMAKE_C_COMPILER_WORKS 1)

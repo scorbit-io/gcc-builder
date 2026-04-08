@@ -3,7 +3,8 @@
 # Per-Architecture Builder Image
 #
 # Installs a pre-built GCC cross-toolchain, a target-platform sysroot,
-# and cross-compiled dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive).
+# and cross-compiled dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive)
+# installed into the sysroot at /usr/local.
 #
 # Docker layers are ordered so that changing the sysroot base image
 # does NOT invalidate the toolchain layer.
@@ -188,7 +189,6 @@ RUN /opt/scripts/deps/build-libarchive.sh "${ARCH_NAME}" "${LIBARCHIVE}" \
 # ------------------------------------------
 ENV CROSS_TARGET=${TARGET}
 ENV SYSROOT=/opt/${SYSROOT_NAME}
-ENV DEPS_PREFIX=/opt/deps-${ARCH_NAME}
 ENV CMAKE_TOOLCHAIN_FILE=/opt/toolchain/${ARCH_NAME}.cmake
 ENV CC=${TARGET}-gcc
 ENV CXX=${TARGET}-g++
@@ -199,7 +199,7 @@ ENV NM=${TARGET}-nm
 ENV LD=${TARGET}-ld
 ENV OBJCOPY=${TARGET}-objcopy
 ENV OBJDUMP=${TARGET}-objdump
-ENV PKG_CONFIG_PATH=/opt/deps-${ARCH_NAME}/lib/pkgconfig
+ENV PKG_CONFIG_PATH=/opt/${SYSROOT_NAME}/usr/local/lib/pkgconfig
 ENV PKG_CONFIG_SYSROOT_DIR=/opt/${SYSROOT_NAME}
 # Match toolchain file: static libgcc / libstdc++ (libc still dynamic)
 ENV CFLAGS="-static-libgcc"

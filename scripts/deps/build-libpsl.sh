@@ -17,13 +17,15 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$LIBPSL_DIR"
 
+SYSROOT="/opt/${SYSROOT_NAME}"
+
 # Build libpsl using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
-    ./configure --host="$TARGET" --prefix=/opt/deps-${ARCH_NAME} \
+    ./configure --host="$TARGET" --prefix=/usr/local \
                 --enable-static --disable-shared
 
 make -j$(nproc)
-make install
+make install DESTDIR="$SYSROOT"
 make clean
 
 echo "libpsl built successfully for $ARCH_NAME"
