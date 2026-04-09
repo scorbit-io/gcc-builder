@@ -59,7 +59,7 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: all toolchains builders clean
+.PHONY: all toolchains builders builder-all clean
 
 # Pattern-built docker layers do not create files named sysroot-armhf, etc. Without this,
 # GNU Make removes them as "intermediate" files after builder-% runs.
@@ -69,6 +69,10 @@ all: toolchains builders
 
 toolchains: $(addprefix toolchain-,$(ARCHES))
 builders:   $(addprefix builder-,$(ARCHES))
+
+# Build all per-arch builder images only (does not run toolchains up front; each
+# builder-* still builds a missing toolchain artifact as needed).
+builder-all: builders
 
 # -------------------------------------------------------
 # Layer 1a: Toolchain sysroot images (old glibc for GCC build)
@@ -140,5 +144,11 @@ builder-%: sysroot-%
 # -------------------------------------------------------
 # Cleanup
 # -------------------------------------------------------
+# Removes artifacts and intermediate Docker images (toolchain-sysroot, sysroot).
+# Keeps final builder images (e.g. gcc-builder-<arch> and versioned tags).
 clean:
 	rm -rf $(ARTIFACTS_DIR)
+	@for a in $(ARCHES); do \
+		docker rmi $(IMAGE_PREFIX)-toolchain-sysroot-$$a 2>/dev/null || true; \
+		docker rmi $(IMAGE_PREFIX)-sysroot-$$a 2>/dev/null || true; \
+	done

@@ -40,18 +40,33 @@ Create a `DOCKER_RELEASE` file (one line, e.g. `12`) or pass `DOCKER_RELEASE=12`
 `DOCKER_USER=dilshodm`).
 
 ```bash
-# Build everything for all architectures
+# Build everything for all architectures (all toolchains, then all builders)
 make all
 
 # Build only toolchain archives (step 1)
 make toolchains
 
-# Build only builder images (auto-builds toolchain if artifact missing)
+# Build all builder images for every architecture (same as `make builders`).
+# Does not run `toolchains` first; each `builder-*` still builds a missing
+# toolchain artifact when needed.
+make builder-all
+
+# Build a single-architecture builder (auto-builds toolchain if artifact missing)
 make builder-armhf
 
-# Clean up generated artifacts
+# Remove artifacts and intermediate Docker images; keep gcc-builder-* images
 make clean
 ```
+
+### Makefile targets (summary)
+
+| Target | Purpose |
+|--------|---------|
+| `all` | `toolchains` then `builders` for every architecture. |
+| `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives. |
+| `builders` | Build all builder images (`builder-armhf`, `builder-amd64`, `builder-arm64`). |
+| `builder-all` | Alias for `builders` — use when you only want builder images, not a full `make all`. |
+| `clean` | Deletes `artifacts/` and removes intermediate Docker images per arch (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** remove final builder images (`gcc-builder-<arch>` and versioned tags, including `user/gcc-builder-…` when `DOCKER_USER` is set). |
 
 ## Using the builder image
 
