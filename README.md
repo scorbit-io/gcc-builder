@@ -34,10 +34,17 @@ All architecture parameters are driven by `platforms.conf`.
 
 ## Quick start
 
-Create a `DOCKER_RELEASE` file (one line, e.g. `12`) or pass `DOCKER_RELEASE=12` on the
-`make` command line. That value becomes the tag on published builder images
-(e.g. `gcc-builder-armhf:12.04_12`, or `dilshodm/gcc-builder-armhf:12.04_12` if you set
-`DOCKER_USER=dilshodm`).
+Set the release suffix for builder image tags using **one** of:
+
+- **`.env`** (recommended for local use): copy `.env.example` to `.env` and set
+  `DOCKER_RELEASE=…` (and optionally `DOCKER_USER=…`). The Makefile includes `.env`
+  automatically; `.env` is listed in `.gitignore`.
+- A one-line **`DOCKER_RELEASE`** file in the repo root, or **`DOCKER_RELEASE=12`**
+  on the `make` command line.
+
+That value becomes the image tag (e.g. `gcc-builder-armhf:12.04_12`, or
+`dilshodm/gcc-builder-armhf:12.04_12` if `DOCKER_USER` is set). Each builder image
+gets **one** tag (no extra `:latest`).
 
 ```bash
 # Build everything for all architectures (all toolchains, then all builders)
@@ -66,7 +73,7 @@ make clean
 | `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives. |
 | `builders` | Build all builder images (`builder-armhf`, `builder-amd64`, `builder-arm64`). |
 | `builder-all` | Alias for `builders` — use when you only want builder images, not a full `make all`. |
-| `clean` | Deletes `artifacts/` and removes intermediate Docker images per arch (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** remove final builder images (`gcc-builder-<arch>` and versioned tags, including `user/gcc-builder-…` when `DOCKER_USER` is set). |
+| `clean` | Deletes `artifacts/` and removes intermediate Docker images per arch (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** remove final builder images (one versioned tag per arch, e.g. `gcc-builder-armhf:12.04_12` or `user/gcc-builder-armhf:20.04_12`). |
 
 ## Using the builder image
 
@@ -149,19 +156,21 @@ Toolchain sysroot docker images can be removed after this step.
 
 ### 3. Builder images
 
-Published tags use `DOCKER_RELEASE` (file `DOCKER_RELEASE` or `make DOCKER_RELEASE=…`)
-as the image tag, for example `12.04_12` when `DOCKER_RELEASE` is `12`. The same build
-also tags `gcc-builder-<arch>:latest` for convenience.
+Published tags use `DOCKER_RELEASE` (`.env`, file `DOCKER_RELEASE`, or
+`make DOCKER_RELEASE=…`) as the image tag, for example `12.04_12` when `DOCKER_RELEASE`
+is `12`. Each architecture gets a **single** tag (`<ubuntu>_<release>`), for example
+`gcc-builder-armhf:12.04_12` or `gcc-builder-amd64:20.04_12`.
 
-Optional **`DOCKER_USER`** (e.g. `make DOCKER_USER=dilshodm`) prefixes the published
-image names with `user/`. Without it, images are `gcc-builder-<arch>:<ubuntu>_<release>` only.
+Optional **`DOCKER_USER`** (e.g. in `.env` or `make DOCKER_USER=dilshodm`) prefixes
+the image name with `user/` (e.g. `dilshodm/gcc-builder-armhf:12.04_12`). Without it,
+tags are unprefixed (`gcc-builder-<arch>:…`).
 
 ```bash
-make builder-armhf    # → gcc-builder-armhf:12.04_<release>  (+ gcc-builder-armhf:latest)
-make builder-amd64    # → gcc-builder-amd64:20.04_<release> (+ gcc-builder-amd64:latest)
-make builder-arm64    # → gcc-builder-arm64:20.04_<release> (+ gcc-builder-arm64:latest)
+make builder-armhf    # → gcc-builder-armhf:12.04_<release>
+make builder-amd64    # → gcc-builder-amd64:20.04_<release>
+make builder-arm64    # → gcc-builder-arm64:20.04_<release>
 # With registry user: make DOCKER_USER=dilshodm builder-armhf
-#   → dilshodm/gcc-builder-armhf:12.04_<release> (+ gcc-builder-armhf:latest)
+#   → dilshodm/gcc-builder-armhf:12.04_<release>
 ```
 
 If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
@@ -175,10 +184,12 @@ this host so the compiler matches your machine.
 
 ## Configuration
 
-- **`DOCKER_USER`** — optional. When set (e.g. `DOCKER_USER=dilshodm`), published builder
-  tags are `user/gcc-builder-armhf:…`, `user/gcc-builder-amd64:…`, etc. When unset,
-  tags are unprefixed (`gcc-builder-armhf:…`, …). An additional `:latest` tag is
-  always applied on the same image.
+- **`.env`** — optional, gitignored. Copy `.env.example` to `.env` to set `DOCKER_RELEASE`,
+  `DOCKER_USER`, or toolchain overrides (`BINUTILS_VERSION`, `GCC_VERSION`) without
+  passing them on every `make` invocation.
+- **`DOCKER_USER`** — optional. When set (e.g. `DOCKER_USER=dilshodm`), builder tags are
+  `user/gcc-builder-armhf:…`, `user/gcc-builder-amd64:…`, etc. When unset, tags are
+  unprefixed (`gcc-builder-armhf:…`, …).
 
 Edit `platforms.conf` to add or modify target architectures:
 

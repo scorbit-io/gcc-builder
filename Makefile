@@ -13,6 +13,10 @@
 #   make builder-armhf       # build armhf builder (auto-builds toolchain if needed)
 #   make toolchains          # build all toolchain archives only
 #   make toolchain-armhf     # build one toolchain archive
+#
+# Optional local overrides: copy .env.example to .env (see .gitignore).
+
+-include .env
 
 ARCHES        := armhf amd64 arm64
 IMAGE_PREFIX  := gcc
@@ -138,14 +142,13 @@ builder-%: sysroot-%
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg TARGET=$(call platform,$*,target) \
 		-t $(BUILDER_TAG_$*) \
-		-t $(IMAGE_PREFIX)-builder-$* \
 		.
 
 # -------------------------------------------------------
 # Cleanup
 # -------------------------------------------------------
 # Removes artifacts and intermediate Docker images (toolchain-sysroot, sysroot).
-# Keeps final builder images (e.g. gcc-builder-<arch> and versioned tags).
+# Keeps final builder images (single versioned tag per arch, e.g. …/gcc-builder-armhf:12.04_12).
 clean:
 	rm -rf $(ARTIFACTS_DIR)
 	@for a in $(ARCHES); do \

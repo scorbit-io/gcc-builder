@@ -17,7 +17,7 @@
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --build-arg TARGET=arm-linux-gnueabihf \
-#     -t gcc-builder-armhf .
+#     -t gcc-builder-armhf:12.04_12 .
 # ==========================================
 # All ARGs used in any FROM must appear before the first FROM.
 
