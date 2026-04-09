@@ -1,7 +1,7 @@
 #!/bin/bash
 # Parse a single field from platforms.conf for a given architecture.
 # Usage: parse-platform.sh <arch_name> <field_name>
-# Fields: target, sysroot, platform, base_image, builder_sysroot_dockerfile, cmake_proc, cmake_flags
+# Fields: target, sysroot, platform, base_image, sysroot_dockerfile, cmake_proc, cmake_flags
 
 ARCH="$1"
 FIELD="$2"
@@ -14,7 +14,7 @@ if [ -z "$ARCH" ] || [ -z "$FIELD" ]; then
     exit 1
 fi
 
-while IFS='|' read -r arch target sysroot platform base_image builder_sysroot_dockerfile cmake_proc cmake_flags rest; do
+while IFS='|' read -r arch target sysroot platform base_image sysroot_dockerfile cmake_proc cmake_flags rest; do
     [[ "$arch" =~ ^#.*$ ]] && continue
     [ -z "$arch" ] && continue
 
@@ -24,7 +24,7 @@ while IFS='|' read -r arch target sysroot platform base_image builder_sysroot_do
             sysroot)                     echo "$sysroot" ;;
             platform)                    echo "$platform" ;;
             base_image)                  echo "$base_image" ;;
-            builder_sysroot_dockerfile)  echo "$builder_sysroot_dockerfile" ;;
+            sysroot_dockerfile)          echo "$sysroot_dockerfile" ;;
             cmake_proc)                  echo "$cmake_proc" ;;
             cmake_flags)                 echo "$cmake_flags" ;;
             *) echo "Unknown field: $FIELD" >&2; exit 1 ;;

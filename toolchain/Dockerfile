@@ -9,7 +9,7 @@
 #
 # Usage:
 #   docker buildx build -f toolchain/Dockerfile \
-#     --build-arg SYSROOT_IMAGE=gcc15-toolchain-sysroot-armhf \
+#     --build-arg SYSROOT_IMAGE=gcc-toolchain-sysroot-armhf \
 #     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
 #     --build-arg HOST_PLATFORM=linux/arm64 \
 #     --build-arg ARCH_NAME=armhf \

@@ -2,9 +2,9 @@
 
 Multi-architecture GCC 15 cross-compilation toolchain targeting:
 
-| Arch  | Triple                  | Toolchain Sysroot      | Builder Sysroot  |
+| Arch  | Triple                  | Toolchain Sysroot      | Target Sysroot   |
 |-------|-------------------------|------------------------|------------------|
-| armhf | arm-linux-gnueabihf     | Ubuntu 12.04 (armv7)   | Ubuntu 20.04     |
+| armhf | arm-linux-gnueabihf     | Ubuntu 12.04 (armv7)   | Ubuntu 12.04     |
 | amd64 | x86_64-linux-gnu        | Ubuntu 14.04 (amd64)   | Ubuntu 20.04     |
 | arm64 | aarch64-linux-gnu       | Ubuntu 14.04 (arm64)   | Ubuntu 20.04     |
 
@@ -13,17 +13,20 @@ Multi-architecture GCC 15 cross-compilation toolchain targeting:
 The build is split into layers, each with its own Dockerfile:
 
 ```
-Layer 1   sysroots/Dockerfile        Parameterized sysroot (old glibc or arbitrary target)
-Layer 2   toolchain/Dockerfile       Builds GCC cross-compiler → tar.gz archive
-Layer 3   builder/Dockerfile         Toolchain + target sysroot + cross-compiled dependencies
+Layer 1a  toolchain-sysroots/Dockerfile   Minimal sysroot for GCC build (old glibc)
+Layer 1b  sysroots/Dockerfile.*           Target sysroot for the builder image
+Layer 2   toolchain/Dockerfile            Builds GCC cross-compiler → tar.gz archive
+Layer 3   builder/Dockerfile              Toolchain + target sysroot + cross-compiled dependencies
 ```
 
 Two separate sysroot images are built per architecture:
 
 - **Toolchain sysroot** (`BASE_IMAGE` in `platforms.conf`) — old Ubuntu for building GCC
   against a low glibc. Can be deleted after the toolchain artifact is produced.
-- **Builder sysroot** (`BUILDER_SYSROOT_DOCKERFILE` in `platforms.conf`) — per-arch
-  Dockerfile in `builder-sysroots/`. Used in the builder image for cross-compilation.
+  Docker image tag: `gcc-toolchain-sysroot-<arch>` (with `IMAGE_PREFIX` from the Makefile).
+- **Target sysroot** (`SYSROOT_DOCKERFILE` in `platforms.conf`) — per-arch Dockerfile in
+  `sysroots/`. Used in the builder image for cross-compilation. Docker image tag:
+  `gcc-sysroot-<arch>`.
 
 Library build scripts live in `scripts/deps/` and are executed inside the builder image.
 
@@ -32,8 +35,9 @@ All architecture parameters are driven by `platforms.conf`.
 ## Quick start
 
 Create a `DOCKER_RELEASE` file (one line, e.g. `12`) or pass `DOCKER_RELEASE=12` on the
-`make` command line. That value becomes the tag suffix on published builder images
-(`dilshodm/ubuntu-builder-arm:12.04_12`, and so on).
+`make` command line. That value becomes the tag on published builder images
+(e.g. `gcc-builder-armhf:12.04_12`, or `dilshodm/gcc-builder-armhf:12.04_12` if you set
+`DOCKER_USER=dilshodm`).
 
 ```bash
 # Build everything for all architectures
@@ -77,7 +81,7 @@ The image also sets `CFLAGS` / `CXXFLAGS` to the same static-lib defaults for
 plain `gcc` / `g++` invocations. Override or clear them if you need fully
 dynamic C++ runtime.
 
-For **autotools** in the armhf image, `/etc/profile.d/gcc15-armhf-libatomic.sh`
+For **autotools** in the armhf image, `/etc/profile.d/gcc-armhf-libatomic.sh`
 sets `LIBS` (appended last by `configure`/`make`), not `LDFLAGS`. For a one-off
 build you can use:
 
@@ -116,8 +120,8 @@ $CC hello.c -o hello
 # Toolchain sysroots (old glibc, used for GCC build)
 make toolchain-sysroot-armhf
 
-# Builder sysroots (target platform, used in builder image)
-make builder-sysroot-armhf
+# Target sysroots (used inside the builder image)
+make sysroot-armhf
 ```
 
 ### 2. Toolchain archives
@@ -131,16 +135,22 @@ Toolchain sysroot docker images can be removed after this step.
 ### 3. Builder images
 
 Published tags use `DOCKER_RELEASE` (file `DOCKER_RELEASE` or `make DOCKER_RELEASE=…`)
-as the suffix after the Ubuntu version, for example `12.04_12` when `DOCKER_RELEASE` is `12`.
+as the image tag, for example `12.04_12` when `DOCKER_RELEASE` is `12`. The same build
+also tags `gcc-builder-<arch>:latest` for convenience.
+
+Optional **`DOCKER_USER`** (e.g. `make DOCKER_USER=dilshodm`) prefixes the published
+image names with `user/`. Without it, images are `gcc-builder-<arch>:<ubuntu>_<release>` only.
 
 ```bash
-make builder-armhf    # → dilshodm/ubuntu-builder-arm:12.04_<release>  (+ gcc15-builder-armhf alias)
-make builder-amd64    # → dilshodm/ubuntu-builder-amd64:20.04_<release> (+ gcc15-builder-amd64)
-make builder-arm64    # → dilshodm/ubuntu-builder-arm64:20.04_<release> (+ gcc15-builder-arm64)
+make builder-armhf    # → gcc-builder-armhf:12.04_<release>  (+ gcc-builder-armhf:latest)
+make builder-amd64    # → gcc-builder-amd64:20.04_<release> (+ gcc-builder-amd64:latest)
+make builder-arm64    # → gcc-builder-arm64:20.04_<release> (+ gcc-builder-arm64:latest)
+# With registry user: make DOCKER_USER=dilshodm builder-armhf
+#   → dilshodm/gcc-builder-armhf:12.04_<release> (+ gcc-builder-armhf:latest)
 ```
 
 If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
-Changing the builder sysroot Dockerfile and re-running only rebuilds the sysroot
+Changing the target sysroot Dockerfile and re-running only rebuilds the sysroot
 and dependency layers — the toolchain layer stays cached.
 
 The toolchain tarball contains **host-native** GCC/binutils (e.g. linux/arm64 on
@@ -150,15 +160,20 @@ this host so the compiler matches your machine.
 
 ## Configuration
 
+- **`DOCKER_USER`** — optional. When set (e.g. `DOCKER_USER=dilshodm`), published builder
+  tags are `user/gcc-builder-armhf:…`, `user/gcc-builder-amd64:…`, etc. When unset,
+  tags are unprefixed (`gcc-builder-armhf:…`, …). An additional `:latest` tag is
+  always applied on the same image.
+
 Edit `platforms.conf` to add or modify target architectures:
 
 ```
-# ARCH_NAME|TARGET_TRIPLET|SYSROOT_NAME|DOCKER_PLATFORM|BASE_IMAGE|BUILDER_SYSROOT_DOCKERFILE|CMAKE_PROCESSOR|CMAKE_FLAGS
-armhf|arm-linux-gnueabihf|sysroot-armhf|linux/arm/v7|dilshodm/ubuntu:12.04|builder-sysroots/Dockerfile.ubuntu12|arm|-march=armv7-a ...
+# ARCH_NAME|TARGET_TRIPLET|SYSROOT_NAME|DOCKER_PLATFORM|BASE_IMAGE|SYSROOT_DOCKERFILE|CMAKE_PROCESSOR|CMAKE_FLAGS
+armhf|arm-linux-gnueabihf|sysroot-armhf|linux/arm/v7|dilshodm/ubuntu:12.04|sysroots/Dockerfile.ubuntu12|arm|-march=armv7-a ...
 ```
 
 - `BASE_IMAGE` — base for the toolchain sysroot (old glibc for compatibility)
-- `BUILDER_SYSROOT_DOCKERFILE` — Dockerfile that produces the builder sysroot image
+- `SYSROOT_DOCKERFILE` — Dockerfile under `sysroots/` for the target sysroot image
 
 ## Host platform
 

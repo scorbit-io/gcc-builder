@@ -11,13 +11,13 @@
 #
 # Usage:
 #   docker buildx build --load --platform=linux/arm64 -f builder/Dockerfile \
-#     --build-arg SYSROOT_IMAGE=gcc15-builder-sysroot-armhf \
+#     --build-arg SYSROOT_IMAGE=gcc-sysroot-armhf \
 #     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
 #     --build-arg HOST_PLATFORM=linux/arm64 \
 #     --build-arg ARCH_NAME=armhf \
 #     --build-arg SYSROOT_NAME=sysroot-armhf \
 #     --build-arg TARGET=arm-linux-gnueabihf \
-#     -t gcc15-builder-armhf .
+#     -t gcc-builder-armhf .
 # ==========================================
 # All ARGs used in any FROM must appear before the first FROM.
 
@@ -208,9 +208,9 @@ ENV CXXFLAGS="-static-libstdc++ -static-libgcc"
 # armhf: link libatomic statically (targets without libatomic.so, e.g. old Ubuntu on device)
 RUN if [ "${ARCH_NAME}" = "armhf" ]; then \
       printf '%s\n' \
-        '# gcc15-builder: static libatomic after other libs (autotools: LIBS is appended last)' \
+        '# gcc-builder: static libatomic after other libs (autotools: LIBS is appended last)' \
         'export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"' \
-        > /etc/profile.d/gcc15-armhf-libatomic.sh; \
+        > /etc/profile.d/gcc-armhf-libatomic.sh; \
     fi
 
 WORKDIR /wrk

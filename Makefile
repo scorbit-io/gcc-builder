@@ -4,7 +4,7 @@
 #
 # Layers:
 #   1a. toolchain-sysroot-<arch> – minimal sysroot for GCC build (old glibc)
-#   1b. builder-sysroot-<arch>   – target sysroot for builder (arbitrary base image)
+#   1b. sysroot-<arch>            – target sysroot for builder (arbitrary base image)
 #   2.  toolchain-<arch>         – builds GCC cross-compiler, exports tar.gz archive
 #   3.  builder-<arch>           – host image with toolchain + sysroot + dependencies
 #
@@ -15,10 +15,15 @@
 #   make toolchain-armhf     # build one toolchain archive
 
 ARCHES        := armhf amd64 arm64
-IMAGE_PREFIX  := gcc15
+IMAGE_PREFIX  := gcc
 ARTIFACTS_DIR := artifacts
 
-# Suffix for published builder tags, e.g. dilshodm/ubuntu-builder-arm:12.04_12
+# Optional Docker Hub (or registry) user/namespace for published builder tags.
+# If set: dilshodm/gcc-builder-armhf:12.04_<release>. If empty: gcc-builder-armhf:12.04_<release>
+DOCKER_USER ?=
+DOCKER_REPO_PREFIX := $(if $(strip $(DOCKER_USER)),$(DOCKER_USER)/,)
+
+# Suffix for published builder tags, e.g. gcc-builder-armhf:12.04_12 or user/gcc-builder-armhf:12.04_12
 DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
 DOCKER_RELEASE      ?= $(shell tr -d ' \t\n\r' < $(DOCKER_RELEASE_FILE) 2>/dev/null)
 ifeq ($(DOCKER_RELEASE),)
@@ -26,9 +31,9 @@ $(error Set DOCKER_RELEASE=… on the command line, or create $(DOCKER_RELEASE_F
 endif
 
 # Final docker image names (Ubuntu version matches toolchain / builder sysroot base)
-BUILDER_TAG_armhf := dilshodm/ubuntu-builder-arm:12.04_$(DOCKER_RELEASE)
-BUILDER_TAG_amd64 := dilshodm/ubuntu-builder-amd64:20.04_$(DOCKER_RELEASE)
-BUILDER_TAG_arm64 := dilshodm/ubuntu-builder-arm64:20.04_$(DOCKER_RELEASE)
+BUILDER_TAG_armhf := $(DOCKER_REPO_PREFIX)gcc-builder-armhf:12.04_$(DOCKER_RELEASE)
+BUILDER_TAG_amd64 := $(DOCKER_REPO_PREFIX)gcc-builder-amd64:20.04_$(DOCKER_RELEASE)
+BUILDER_TAG_arm64 := $(DOCKER_REPO_PREFIX)gcc-builder-arm64:20.04_$(DOCKER_RELEASE)
 
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
@@ -55,7 +60,10 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # Phony targets
 # -------------------------------------------------------
 .PHONY: all toolchains builders clean
-.PHONY: toolchain-sysroot-% builder-sysroot-% toolchain-% builder-%
+
+# Pattern-built docker layers do not create files named sysroot-armhf, etc. Without this,
+# GNU Make removes them as "intermediate" files after builder-% runs.
+.SECONDARY: $(addprefix toolchain-sysroot-,$(ARCHES)) $(addprefix sysroot-,$(ARCHES))
 
 all: toolchains builders
 
@@ -69,19 +77,19 @@ toolchain-sysroot-%:
 	docker build \
 		--platform=$(call platform,$*,platform) \
 		--build-arg BASE_IMAGE=$(call platform,$*,base_image) \
-		-f sysroots/Dockerfile \
+		-f toolchain-sysroots/Dockerfile \
 		-t $(IMAGE_PREFIX)-toolchain-sysroot-$* \
-		sysroots/
+		toolchain-sysroots/
 
 # -------------------------------------------------------
-# Layer 1b: Builder sysroot images (per-arch Dockerfile)
+# Layer 1b: Target sysroot images for the builder (per-arch Dockerfile)
 # -------------------------------------------------------
-builder-sysroot-%:
+sysroot-%:
 	docker build \
 		--platform=$(call platform,$*,platform) \
-		-f $(call platform,$*,builder_sysroot_dockerfile) \
-		-t $(IMAGE_PREFIX)-builder-sysroot-$* \
-		builder-sysroots/
+		-f $(call platform,$*,sysroot_dockerfile) \
+		-t $(IMAGE_PREFIX)-sysroot-$* \
+		sysroots/
 
 # -------------------------------------------------------
 # Layer 2: Toolchain builds → tar.gz archives
@@ -107,7 +115,7 @@ toolchain-%: toolchain-sysroot-%
 # Layer 3: Per-architecture builder images
 # Builds toolchain automatically only if artifact is missing.
 # -------------------------------------------------------
-builder-%: builder-sysroot-%
+builder-%: sysroot-%
 	@if [ -f "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz" ] && ! gzip -t "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz" 2>/dev/null; then \
 		echo "Corrupt toolchain archive (gzip -t failed); removing and rebuilding..."; \
 		rm -f "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz"; \
@@ -119,7 +127,7 @@ builder-%: builder-sysroot-%
 	docker buildx build --load \
 		--platform=$(HOST_LINUX_PLATFORM) \
 		-f builder/Dockerfile \
-		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-builder-sysroot-$* \
+		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-sysroot-$* \
 		--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg ARCH_NAME=$* \
