@@ -10,4 +10,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcap-dev \
     libusb-1.0-0-dev \
     libsystemd-dev \
+    uuid-dev \
     && rm -rf /var/lib/apt/lists/*
