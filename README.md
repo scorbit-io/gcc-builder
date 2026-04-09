@@ -70,6 +70,9 @@ make clean
 
 # Also delete artifacts/ (toolchain tarballs)
 make clean-all
+
+# After `docker login`, upload the three versioned builder tags (see Publishing below)
+make push
 ```
 
 ### Makefile targets (summary)
@@ -84,6 +87,7 @@ make clean-all
 | `builder-all` | Alias for `builders` — use when you only want builder images, not a full `make all`. |
 | `clean` | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or final builder images. |
 | `clean-all` | Runs `clean`, then deletes `artifacts/`. Does **not** remove final builder images. |
+| `push` | Runs `docker push` for each `BUILDER_TAG` (`armhf`, `amd64`, `arm64`). Expects images already built and tagged; requires `docker login`. Set **`DOCKER_USER`** for normal Docker Hub names (`user/gcc-builder-…`). |
 
 ## Using the builder image
 
@@ -182,6 +186,23 @@ make builder-arm64    # → gcc-builder-arm64:20.04_<release>
 # With registry user: make DOCKER_USER=dilshodm builder-armhf
 #   → dilshodm/gcc-builder-armhf:12.04_<release>
 ```
+
+#### Publishing (`make push`)
+
+Run **`docker login`** (Docker Hub or your default registry), then **`make push`**. That
+pushes the three tags `$(BUILDER_TAG_armhf)`, `$(BUILDER_TAG_amd64)`, and
+`$(BUILDER_TAG_arm64)` — the same names produced by **`builder-*`**.
+
+**Host platform and push:** `docker push` does not choose CPU/OS; it uploads whatever
+manifest is already on the tag. If you built with **`DOCKER_HOST_PLATFORM=linux/amd64`**
+on macOS, each pushed image is an **linux/amd64** image (runnable on x86_64 hosts). If
+you built with the default on Apple Silicon, pushed images are **linux/arm64**. Pullers
+must match the image architecture (or use emulation). Rebuild with the desired
+`DOCKER_HOST_PLATFORM` before pushing if you need a different host arch.
+
+If **`DOCKER_USER`** is unset, `make push` still runs but prints a warning; Docker Hub
+typically expects repositories under your username (set `DOCKER_USER` in `.env` or on
+the command line when building **and** when the tags must match what you push).
 
 If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
 Changing the target sysroot Dockerfile and re-running only rebuilds the sysroot

@@ -72,7 +72,7 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: help all toolchains builders builder-all clean clean-all
+.PHONY: help all toolchains builders builder-all clean clean-all push
 
 .DEFAULT_GOAL := help
 
@@ -89,6 +89,7 @@ help:
 	@echo '  builder-all     Same as builders (no up-front toolchains; missing tarballs built as needed)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
+	@echo '  push            docker push each versioned builder tag (requires docker login; set DOCKER_USER)'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
@@ -110,6 +111,18 @@ builders:   $(addprefix builder-,$(ARCHES))
 # Build all per-arch builder images only (does not run toolchains up front; each
 # builder-* still builds a missing toolchain artifact as needed).
 builder-all: builders
+
+# Push published builder tags to the default registry (Docker Hub when names are user/...).
+# Pushes the images currently tagged locally — same OS/CPU as the last build (HOST_LINUX_PLATFORM /
+# DOCKER_HOST_PLATFORM). There is no separate platform flag on push.
+push:
+ifeq ($(strip $(DOCKER_USER)),)
+	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed names (Docker Hub usually needs user/repo).' >&2
+endif
+	@set -e; \
+	docker push $(BUILDER_TAG_armhf); \
+	docker push $(BUILDER_TAG_amd64); \
+	docker push $(BUILDER_TAG_arm64)
 
 # -------------------------------------------------------
 # Layer 1a: Toolchain sysroot images (old glibc for GCC build)
