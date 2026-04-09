@@ -34,7 +34,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ------------------------------------------
 # Install host tools (cached layer)
 # ------------------------------------------
-ARG NINJA_VER=1.13.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     file \
@@ -53,13 +52,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install CMake
-ARG CMAKE_VERSION=4.1.2
+ARG CMAKE_VERSION=4.3.1
 RUN ARCH=$(uname -m) \
     && wget https://github.com/dilshodm/cmake-arm32v7/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-Linux-$ARCH.sh \
     && sh cmake-$CMAKE_VERSION-Linux-$ARCH.sh --skip-license --prefix=/usr \
     && rm cmake-$CMAKE_VERSION-Linux-$ARCH.sh
 
 # Build Ninja natively
+ARG NINJA_VER=1.13.2
 RUN wget https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.gz -O ninja.tar.gz \
     && tar xf ninja.tar.gz && rm ninja.tar.gz && cd ninja-$NINJA_VER \
     && cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
@@ -129,7 +129,7 @@ RUN echo '#include <stdio.h>' > /tmp/test.c && \
 # ------------------------------------------
 
 # Boost
-ARG BOOST=boost-1.89.0
+ARG BOOST=boost-1.90.0
 
 RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz \
     && tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz
@@ -140,7 +140,7 @@ RUN /opt/scripts/deps/build-boost.sh "${ARCH_NAME}" "${BOOST}" \
     && rm -rf $BOOST
 
 # OpenSSL
-ARG OPENSSL=openssl-3.5.4
+ARG OPENSSL=openssl-3.5.6
 
 RUN wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz \
     && tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz
@@ -159,8 +159,8 @@ RUN /opt/scripts/deps/build-libpsl.sh "${ARCH_NAME}" "${LIBPSL}" \
     && rm -rf $LIBPSL
 
 # libcurl
-ARG CURL=curl-8.16.0
-ARG CURL_VER=8_16_0
+ARG CURL=curl-8.19.0
+ARG CURL_VER=8_19_0
 
 RUN wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz \
     && tar xf $CURL.tar.xz && rm $CURL.tar.xz
@@ -169,7 +169,7 @@ RUN /opt/scripts/deps/build-libcurl.sh "${ARCH_NAME}" "${CURL}" \
     && rm -rf $CURL
 
 # libarchive
-ARG LIBARCHIVE_VER=3.8.2
+ARG LIBARCHIVE_VER=3.8.6
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
 
 RUN wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz \
