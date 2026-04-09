@@ -45,9 +45,14 @@ BUILDER_TAG_arm64 := $(DOCKER_REPO_PREFIX)gcc-builder-arm64:20.04_$(DOCKER_RELEA
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
 
-# Native linux/* platform for Ubuntu stages that run host binaries (toolchain + builder).
-# Override if Make runs on a different arch than the Docker daemon (rare).
+# Native linux/* platform for Ubuntu stages that run host binaries (toolchain compile + builder).
+# Auto-detected from uname unless overridden:
+#   - DOCKER_HOST_PLATFORM in .env (e.g. linux/amd64 to build x86_64 images on Apple Silicon), or
+#   - HOST_LINUX_PLATFORM on the make command line.
 ifndef HOST_LINUX_PLATFORM
+ifneq ($(strip $(DOCKER_HOST_PLATFORM)),)
+HOST_LINUX_PLATFORM := $(strip $(DOCKER_HOST_PLATFORM))
+else
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M),aarch64)
 HOST_LINUX_PLATFORM := linux/arm64
@@ -57,6 +62,7 @@ else ifeq ($(UNAME_M),x86_64)
 HOST_LINUX_PLATFORM := linux/amd64
 else
 HOST_LINUX_PLATFORM := linux/$(UNAME_M)
+endif
 endif
 endif
 
@@ -92,7 +98,7 @@ help:
 	@echo ''
 	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/clean-all/help):'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
-	@echo '  Optional: DOCKER_USER, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM'
+	@echo '  Optional: DOCKER_USER, DOCKER_HOST_PLATFORM, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM'
 	@echo ''
 	@echo 'See README.md for full documentation.'
 
@@ -133,6 +139,7 @@ toolchain-%: toolchain-sysroot-%
 	mkdir -p $(ARTIFACTS_DIR)
 	bash -c 'set -euo pipefail; \
 		docker buildx build \
+			--platform=$(HOST_LINUX_PLATFORM) \
 			-f toolchain/Dockerfile \
 			--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-toolchain-sysroot-$* \
 			--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \

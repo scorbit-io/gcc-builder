@@ -195,8 +195,9 @@ this host so the compiler matches your machine.
 ## Configuration
 
 - **`.env`** — optional, gitignored. Copy `.env.example` to `.env` to set `DOCKER_RELEASE`,
-  `DOCKER_USER`, or toolchain overrides (`BINUTILS_VERSION`, `GCC_VERSION`) without
-  passing them on every `make` invocation.
+  `DOCKER_USER`, **`DOCKER_HOST_PLATFORM`** (see Host platform below), or toolchain
+  overrides (`BINUTILS_VERSION`, `GCC_VERSION`) without passing them on every `make`
+  invocation.
 - **`DOCKER_USER`** — optional. When set (e.g. `DOCKER_USER=dilshodm`), builder tags are
   `user/gcc-builder-armhf:…`, `user/gcc-builder-amd64:…`, etc. When unset, tags are
   unprefixed (`gcc-builder-armhf:…`, …).
@@ -213,7 +214,23 @@ armhf|arm-linux-gnueabihf|sysroot-armhf|linux/arm/v7|dilshodm/ubuntu:12.04|sysro
 
 ## Host platform
 
-The toolchain and builder images run on the host's native architecture. On an
-Apple M4 (arm64), the cross-compilers are arm64 binaries that produce code for
-the target platforms. On an x64 machine, the same Dockerfiles produce x64
-cross-compiler binaries. No code changes are needed to switch hosts.
+The **toolchain tarball** and **builder image** both embed **host-native** GCC/binutils
+for a single Linux platform: `linux/arm64` or `linux/amd64` (see `HOST_PLATFORM` in the
+toolchain and builder Dockerfiles). By default the Makefile picks that from `uname`
+(Apple Silicon → `linux/arm64`, typical PC → `linux/amd64`).
+
+Set **`DOCKER_HOST_PLATFORM`** in `.env` to force the platform when the default does not
+match where you will run the builder, for example on an M4 Mac:
+
+```bash
+# Build amd64 toolchains + amd64 builder images (for use on x86_64 Linux hosts)
+DOCKER_HOST_PLATFORM=linux/amd64
+```
+
+Use `linux/arm64` to force AArch64 host binaries. When `DOCKER_HOST_PLATFORM` differs
+from your machine’s architecture, Docker must emulate the other arch (buildx / QEMU);
+builds are slower but the resulting images match the chosen platform.
+
+Equivalent override on one command: `make HOST_LINUX_PLATFORM=linux/amd64 all` (same
+variable the Makefile passes through as `HOST_LINUX_PLATFORM` after resolving
+`DOCKER_HOST_PLATFORM`).
