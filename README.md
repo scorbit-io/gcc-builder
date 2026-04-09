@@ -65,8 +65,11 @@ make builder-all
 # Build a single-architecture builder (auto-builds toolchain if artifact missing)
 make builder-armhf
 
-# Remove artifacts and intermediate Docker images; keep gcc-builder-* images
+# Remove intermediate sysroot Docker images only (keeps artifacts/ and builder images)
 make clean
+
+# Also delete artifacts/ (toolchain tarballs)
+make clean-all
 ```
 
 ### Makefile targets (summary)
@@ -79,7 +82,8 @@ make clean
 | `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives. |
 | `builders` | Build all builder images (`builder-armhf`, `builder-amd64`, `builder-arm64`). |
 | `builder-all` | Alias for `builders` — use when you only want builder images, not a full `make all`. |
-| `clean` | Deletes `artifacts/` and removes intermediate Docker images per arch (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** remove final builder images (one versioned tag per arch, e.g. `gcc-builder-armhf:12.04_12` or `user/gcc-builder-armhf:20.04_12`). |
+| `clean` | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or final builder images. |
+| `clean-all` | Runs `clean`, then deletes `artifacts/`. Does **not** remove final builder images. |
 
 ## Using the builder image
 

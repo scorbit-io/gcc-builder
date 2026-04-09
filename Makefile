@@ -30,9 +30,9 @@ DOCKER_REPO_PREFIX := $(if $(strip $(DOCKER_USER)),$(DOCKER_USER)/,)
 # Suffix for published builder tags, e.g. gcc-builder-armhf:12.04_12 or user/gcc-builder-armhf:12.04_12
 DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
 DOCKER_RELEASE      ?= $(shell cat $(DOCKER_RELEASE_FILE) 2>/dev/null | tr -d ' \t\n\r')
-# Bare `make`, `make help`, and `make clean` do not need a release; all other goals do.
+# Bare `make`, `make help`, `make clean`, and `make clean-all` do not need a release.
 ifeq ($(DOCKER_RELEASE),)
-ifneq ($(filter-out help clean,$(MAKECMDGOALS)),)
+ifneq ($(filter-out help clean clean-all,$(MAKECMDGOALS)),)
 $(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE), or use .env — run `make help`)
 endif
 endif
@@ -66,7 +66,7 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: help all toolchains builders builder-all clean
+.PHONY: help all toolchains builders builder-all clean clean-all
 
 .DEFAULT_GOAL := help
 
@@ -81,7 +81,8 @@ help:
 	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builders        All builder images (armhf, amd64, arm64)'
 	@echo '  builder-all     Same as builders (no up-front toolchains; missing tarballs built as needed)'
-	@echo '  clean           Remove artifacts/ and intermediate gcc-*sysroot* Docker images'
+	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
+	@echo '  clean-all       Same as clean, plus delete artifacts/'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
@@ -89,7 +90,7 @@ help:
 	@echo '  toolchain-<arch>           Cross toolchain tarball'
 	@echo '  builder-<arch>             Final builder image (one versioned tag)'
 	@echo ''
-	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/help):'
+	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/clean-all/help):'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
 	@echo '  Optional: DOCKER_USER, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM'
 	@echo ''
@@ -173,11 +174,12 @@ builder-%: sysroot-%
 # -------------------------------------------------------
 # Cleanup
 # -------------------------------------------------------
-# Removes artifacts and intermediate Docker images (toolchain-sysroot, sysroot).
-# Keeps final builder images (single versioned tag per arch, e.g. …/gcc-builder-armhf:12.04_12).
+# Intermediate images only; keeps artifacts/ and final builder images.
 clean:
-	rm -rf $(ARTIFACTS_DIR)
 	@for a in $(ARCHES); do \
 		docker rmi $(IMAGE_PREFIX)-toolchain-sysroot-$$a 2>/dev/null || true; \
 		docker rmi $(IMAGE_PREFIX)-sysroot-$$a 2>/dev/null || true; \
 	done
+
+clean-all: clean
+	rm -rf $(ARTIFACTS_DIR)
