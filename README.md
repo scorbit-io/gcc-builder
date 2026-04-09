@@ -47,6 +47,10 @@ That value becomes the image tag (e.g. `gcc-builder-armhf:12.04_12`, or
 gets **one** tag (no extra `:latest`).
 
 ```bash
+# Show targets and configuration hints (default when you run `make` with no arguments)
+make
+make help
+
 # Build everything for all architectures (all toolchains, then all builders)
 make all
 
@@ -69,6 +73,8 @@ make clean
 
 | Target | Purpose |
 |--------|---------|
+| *(default)* | Same as `help` — lists targets and options (no `DOCKER_RELEASE` needed). |
+| `help` | Same as running `make` with no arguments. |
 | `all` | `toolchains` then `builders` for every architecture. |
 | `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives. |
 | `builders` | Build all builder images (`builder-armhf`, `builder-amd64`, `builder-arm64`). |

@@ -29,9 +29,12 @@ DOCKER_REPO_PREFIX := $(if $(strip $(DOCKER_USER)),$(DOCKER_USER)/,)
 
 # Suffix for published builder tags, e.g. gcc-builder-armhf:12.04_12 or user/gcc-builder-armhf:12.04_12
 DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
-DOCKER_RELEASE      ?= $(shell tr -d ' \t\n\r' < $(DOCKER_RELEASE_FILE) 2>/dev/null)
+DOCKER_RELEASE      ?= $(shell cat $(DOCKER_RELEASE_FILE) 2>/dev/null | tr -d ' \t\n\r')
+# Bare `make`, `make help`, and `make clean` do not need a release; all other goals do.
 ifeq ($(DOCKER_RELEASE),)
-$(error Set DOCKER_RELEASE=… on the command line, or create $(DOCKER_RELEASE_FILE) with the tag suffix)
+ifneq ($(filter-out help clean,$(MAKECMDGOALS)),)
+$(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE), or use .env — run `make help`)
+endif
 endif
 
 # Final docker image names (Ubuntu version matches toolchain / builder sysroot base)
@@ -63,11 +66,34 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: all toolchains builders builder-all clean
+.PHONY: help all toolchains builders builder-all clean
+
+.DEFAULT_GOAL := help
 
 # Pattern-built docker layers do not create files named sysroot-armhf, etc. Without this,
 # GNU Make removes them as "intermediate" files after builder-% runs.
 .SECONDARY: $(addprefix toolchain-sysroot-,$(ARCHES)) $(addprefix sysroot-,$(ARCHES))
+
+help:
+	@echo 'GCC 15 cross-toolchain — common targets'
+	@echo ''
+	@echo '  all             All toolchain archives, then all builder images'
+	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
+	@echo '  builders        All builder images (armhf, amd64, arm64)'
+	@echo '  builder-all     Same as builders (no up-front toolchains; missing tarballs built as needed)'
+	@echo '  clean           Remove artifacts/ and intermediate gcc-*sysroot* Docker images'
+	@echo ''
+	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
+	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
+	@echo '  sysroot-<arch>             Target sysroot image for the builder'
+	@echo '  toolchain-<arch>           Cross toolchain tarball'
+	@echo '  builder-<arch>             Final builder image (one versioned tag)'
+	@echo ''
+	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/help):'
+	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
+	@echo '  Optional: DOCKER_USER, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM'
+	@echo ''
+	@echo 'See README.md for full documentation.'
 
 all: toolchains builders
 
