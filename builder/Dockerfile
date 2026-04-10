@@ -24,10 +24,14 @@
 ARG SYSROOT_IMAGE=ubuntu:24.04
 ARG SYSROOT_PLATFORM=linux/amd64
 ARG HOST_PLATFORM=linux/amd64
+# Must match toolchain/Dockerfile: the tarball’s /opt/cross/*-gcc is linked against
+# this Ubuntu’s glibc; using an older release here than for `make toolchain-*` breaks
+# execution even when the CPU architecture is correct.
+ARG HOST_UBUNTU=24.04
 
 FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
-FROM --platform=${HOST_PLATFORM} ubuntu:24.04
+FROM --platform=${HOST_PLATFORM} ubuntu:${HOST_UBUNTU}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -79,8 +83,10 @@ RUN if ! test -x "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; then \
         ls -la "/opt/cross" 2>/dev/null || true; exit 1; \
     fi; \
     file "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; \
-    if ! "/opt/cross/${TARGET}/bin/${TARGET}-gcc" --version >/dev/null 2>&1; then \
-        echo "ERROR: Cross-compiler exists but does not run on this host (wrong architecture?). Delete artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME} on this machine." >&2; \
+    if ! "/opt/cross/${TARGET}/bin/${TARGET}-gcc" --version; then \
+        echo "ERROR: Cross-compiler did not run successfully (see messages above)." >&2; \
+        echo "Typical causes: stale tarball from another CPU — delete artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME};" >&2; \
+        echo "or builder Ubuntu is older than the OS used to build the toolchain — use the same HOST_UBUNTU for toolchains and builders (Makefile)." >&2; \
         exit 1; \
     fi
 

@@ -22,11 +22,13 @@
 ARG SYSROOT_IMAGE=ubuntu:24.04
 ARG SYSROOT_PLATFORM=linux/amd64
 ARG HOST_PLATFORM=linux/amd64
+# Keep in sync with builder/Dockerfile (glibc must be new enough to run the tarball).
+ARG HOST_UBUNTU=24.04
 
 FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
 
 # Main builder stage (native host arch)
-FROM --platform=${HOST_PLATFORM} ubuntu:24.04 AS builder
+FROM --platform=${HOST_PLATFORM} ubuntu:${HOST_UBUNTU} AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV BUILD_DIR=/opt/toolchain-build

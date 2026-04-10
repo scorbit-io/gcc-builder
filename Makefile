@@ -38,12 +38,15 @@ endif
 endif
 
 # Final docker image names (Ubuntu version matches toolchain / builder sysroot base)
-BUILDER_TAG_armhf := $(DOCKER_REPO_PREFIX)gcc-builder-armhf:12.04_$(DOCKER_RELEASE)
-BUILDER_TAG_amd64 := $(DOCKER_REPO_PREFIX)gcc-builder-amd64:20.04_$(DOCKER_RELEASE)
-BUILDER_TAG_arm64 := $(DOCKER_REPO_PREFIX)gcc-builder-arm64:20.04_$(DOCKER_RELEASE)
+BUILDER_TAG_armhf := $(DOCKER_REPO_PREFIX)gcc-builder-armhf:$(DOCKER_RELEASE)
+BUILDER_TAG_amd64 := $(DOCKER_REPO_PREFIX)gcc-builder-amd64:$(DOCKER_RELEASE)
+BUILDER_TAG_arm64 := $(DOCKER_REPO_PREFIX)gcc-builder-arm64:$(DOCKER_RELEASE)
 
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
+# Ubuntu series for stages that execute the cross-compiler (toolchain + builder).
+# Older values (e.g. 18.04) usually require rebuilding toolchains on that same series.
+HOST_UBUNTU      ?=24.04
 
 # Native linux/* platform for Ubuntu stages that run host binaries (toolchain compile + builder).
 # Auto-detected from uname unless overridden:
@@ -81,7 +84,7 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 .SECONDARY: $(addprefix toolchain-sysroot-,$(ARCHES)) $(addprefix sysroot-,$(ARCHES))
 
 help:
-	@echo 'GCC 15 cross-toolchain — common targets'
+	@echo 'GCC cross-toolchain — common targets'
 	@echo ''
 	@echo '  all             All toolchain archives, then all builder images'
 	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
@@ -99,7 +102,7 @@ help:
 	@echo ''
 	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/clean-all/help):'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
-	@echo '  Optional: DOCKER_USER, DOCKER_HOST_PLATFORM, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM'
+	@echo '  Optional: DOCKER_USER, DOCKER_HOST_PLATFORM, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM, HOST_UBUNTU'
 	@echo ''
 	@echo 'See README.md for full documentation.'
 
@@ -157,6 +160,7 @@ toolchain-%: toolchain-sysroot-%
 			--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-toolchain-sysroot-$* \
 			--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
 			--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
+			--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
 			--build-arg ARCH_NAME=$* \
 			--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 			--build-arg BINUTILS_VERSION=$(BINUTILS_VERSION) \
@@ -185,6 +189,7 @@ builder-%: sysroot-%
 		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-sysroot-$* \
 		--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
+		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
 		--build-arg ARCH_NAME=$* \
 		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
 		--build-arg TARGET=$(call platform,$*,target) \
