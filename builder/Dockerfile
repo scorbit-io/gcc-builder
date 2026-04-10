@@ -49,11 +49,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g \
     build-essential \
     wget \
+    curl \
     git pkg-config perl \
     ca-certificates xz-utils \
     python3 \
+    python2 \
     && update-ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    \
+    && curl https://bootstrap.pypa.io/pip/get-pip.py | python3 \
+    && curl https://bootstrap.pypa.io/pip/2.7/get-pip.py | python2.7 \
+    && rm -rf /root/.cache/pip
 
 # Install CMake
 ARG CMAKE_VERSION=4.3.1

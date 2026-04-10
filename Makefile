@@ -46,7 +46,7 @@ BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
 # Ubuntu series for stages that execute the cross-compiler (toolchain + builder).
 # Older values (e.g. 18.04) usually require rebuilding toolchains on that same series.
-HOST_UBUNTU      ?=24.04
+HOST_UBUNTU      ?=22.04
 
 # Native linux/* platform for Ubuntu stages that run host binaries (toolchain compile + builder).
 # Auto-detected from uname unless overridden:
