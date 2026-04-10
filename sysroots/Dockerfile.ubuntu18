@@ -2,7 +2,7 @@
 # Target sysroot for ARM64 and AMD64
 # Provides target-platform headers and libraries for cross-compilation.
 
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev \
