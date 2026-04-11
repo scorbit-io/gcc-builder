@@ -17,9 +17,8 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$LIBARCHIVE_DIR"
 
-SYSROOT="/opt/${SYSROOT_NAME}"
+SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
-# Build libarchive using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
     ./configure --host="$TARGET" --prefix=/usr/local \
                 --with-openssl --disable-shared \
@@ -27,6 +26,7 @@ build-for-arch.sh "$ARCH_NAME" \
 
 make -j$(nproc)
 make install DESTDIR="$SYSROOT"
+make clean
 
 echo "libarchive built successfully for $ARCH_NAME"
 

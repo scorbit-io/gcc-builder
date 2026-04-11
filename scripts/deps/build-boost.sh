@@ -17,10 +17,9 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$BOOST_DIR"
 
-SYSROOT="/opt/${SYSROOT_NAME}"
+SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
-# Generate user-config.jam
-echo "using gcc : ${ARCH_NAME} : /opt/cross/${TARGET}/bin/${TARGET}-g++ ;" > user-config.jam
+echo "using gcc : ${ARCH_NAME} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET}-g++ ;" > user-config.jam
 
 # Build Boost (b2 has no DESTDIR; install directly into sysroot)
 ./b2 -j$(nproc) \

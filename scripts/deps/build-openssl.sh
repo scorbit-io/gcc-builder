@@ -34,7 +34,7 @@ case "$ARCH_NAME" in
         ;;
 esac
 
-SYSROOT="/opt/${SYSROOT_NAME}"
+SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
 # Build OpenSSL using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \

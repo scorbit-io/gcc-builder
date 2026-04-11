@@ -1,16 +1,16 @@
 # GCC 15 Cross-Toolchain Build System
 #
-# Builds cross-compilers and per-architecture builder images.
+# Builds cross-compilers for armhf/amd64/arm64 and a single unified builder image.
 #
 # Layers:
 #   1a. toolchain-sysroot-<arch> – minimal sysroot for GCC build (old glibc)
 #   1b. sysroot-<arch>            – target sysroot for builder (arbitrary base image)
 #   2.  toolchain-<arch>         – builds GCC cross-compiler, exports tar.gz archive
-#   3.  builder-<arch>           – host image with toolchain + sysroot + dependencies
+#   3.  builder                  – single image with all toolchains + sysroots + dependencies
 #
 # Examples:
-#   make all                 # build toolchains then builders for all architectures
-#   make builder-armhf       # build armhf builder (auto-builds toolchain if needed)
+#   make all                 # build toolchains then builder
+#   make builder             # build unified builder image (auto-builds toolchains if needed)
 #   make toolchains          # build all toolchain archives only
 #   make toolchain-armhf     # build one toolchain archive
 #
@@ -23,35 +23,24 @@ IMAGE_PREFIX  := gcc
 ARTIFACTS_DIR := artifacts
 
 # Optional Docker Hub (or registry) user/namespace for published builder tags.
-# If set: dilshodm/gcc-builder-armhf:12.04_<release>. If empty: gcc-builder-armhf:12.04_<release>
 DOCKER_USER ?=
 DOCKER_REPO_PREFIX := $(if $(strip $(DOCKER_USER)),$(DOCKER_USER)/,)
 
-# Suffix for published builder tags, e.g. gcc-builder-armhf:12.04_12 or user/gcc-builder-armhf:12.04_12
+# Suffix for published builder tag, e.g. gcc-builder:1 or user/gcc-builder:1
 DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
 DOCKER_RELEASE      ?= $(shell cat $(DOCKER_RELEASE_FILE) 2>/dev/null | tr -d ' \t\n\r')
-# Bare `make`, `make help`, `make clean`, and `make clean-all` do not need a release.
 ifeq ($(DOCKER_RELEASE),)
 ifneq ($(filter-out help clean clean-all,$(MAKECMDGOALS)),)
 $(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE), or use .env — run `make help`)
 endif
 endif
 
-# Final docker image names (Ubuntu version matches toolchain / builder sysroot base)
-BUILDER_TAG_armhf := $(DOCKER_REPO_PREFIX)gcc-builder-armhf:$(DOCKER_RELEASE)
-BUILDER_TAG_amd64 := $(DOCKER_REPO_PREFIX)gcc-builder-amd64:$(DOCKER_RELEASE)
-BUILDER_TAG_arm64 := $(DOCKER_REPO_PREFIX)gcc-builder-arm64:$(DOCKER_RELEASE)
+BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder:$(DOCKER_RELEASE)
 
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 15.2.0
-# Ubuntu series for stages that execute the cross-compiler (toolchain + builder).
-# Older values (e.g. 18.04) usually require rebuilding toolchains on that same series.
 HOST_UBUNTU      ?=22.04
 
-# Native linux/* platform for Ubuntu stages that run host binaries (toolchain compile + builder).
-# Auto-detected from uname unless overridden:
-#   - DOCKER_HOST_PLATFORM in .env (e.g. linux/amd64 to build x86_64 images on Apple Silicon), or
-#   - HOST_LINUX_PLATFORM on the make command line.
 ifndef HOST_LINUX_PLATFORM
 ifneq ($(strip $(DOCKER_HOST_PLATFORM)),)
 HOST_LINUX_PLATFORM := $(strip $(DOCKER_HOST_PLATFORM))
@@ -75,30 +64,26 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: help all toolchains builders builder-all clean clean-all push
+.PHONY: help all toolchains builder clean clean-all push
 
 .DEFAULT_GOAL := help
 
-# Pattern-built docker layers do not create files named sysroot-armhf, etc. Without this,
-# GNU Make removes them as "intermediate" files after builder-% runs.
 .SECONDARY: $(addprefix toolchain-sysroot-,$(ARCHES)) $(addprefix sysroot-,$(ARCHES))
 
 help:
 	@echo 'GCC cross-toolchain — common targets'
 	@echo ''
-	@echo '  all             All toolchain archives, then all builder images'
+	@echo '  all             All toolchain archives, then unified builder image'
 	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
-	@echo '  builders        All builder images (armhf, amd64, arm64)'
-	@echo '  builder-all     Same as builders (no up-front toolchains; missing tarballs built as needed)'
+	@echo '  builder         Unified builder image with all 3 architectures'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
-	@echo '  push            docker push each versioned builder tag (requires docker login; set DOCKER_USER)'
+	@echo '  push            docker push the builder tag (requires docker login; set DOCKER_USER)'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
 	@echo '  sysroot-<arch>             Target sysroot image for the builder'
 	@echo '  toolchain-<arch>           Cross toolchain tarball'
-	@echo '  builder-<arch>             Final builder image (one versioned tag)'
 	@echo ''
 	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/clean-all/help):'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
@@ -106,26 +91,16 @@ help:
 	@echo ''
 	@echo 'See README.md for full documentation.'
 
-all: toolchains builders
+all: toolchains builder
 
 toolchains: $(addprefix toolchain-,$(ARCHES))
-builders:   $(addprefix builder-,$(ARCHES))
 
-# Build all per-arch builder images only (does not run toolchains up front; each
-# builder-* still builds a missing toolchain artifact as needed).
-builder-all: builders
-
-# Push published builder tags to the default registry (Docker Hub when names are user/...).
-# Pushes the images currently tagged locally — same OS/CPU as the last build (HOST_LINUX_PLATFORM /
-# DOCKER_HOST_PLATFORM). There is no separate platform flag on push.
+# Push the unified builder image to the default registry.
 push:
 ifeq ($(strip $(DOCKER_USER)),)
-	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed names (Docker Hub usually needs user/repo).' >&2
+	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
 endif
-	@set -e; \
-	docker push $(BUILDER_TAG_armhf); \
-	docker push $(BUILDER_TAG_amd64); \
-	docker push $(BUILDER_TAG_arm64)
+	docker push $(BUILDER_TAG)
 
 # -------------------------------------------------------
 # Layer 1a: Toolchain sysroot images (old glibc for GCC build)
@@ -171,35 +146,31 @@ toolchain-%: toolchain-sysroot-%
 		mv "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz"'
 
 # -------------------------------------------------------
-# Layer 3: Per-architecture builder images
-# Builds toolchain automatically only if artifact is missing.
+# Layer 3: Unified builder image (all architectures)
 # -------------------------------------------------------
-builder-%: sysroot-%
-	@if [ -f "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz" ] && ! gzip -t "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz" 2>/dev/null; then \
-		echo "Corrupt toolchain archive (gzip -t failed); removing and rebuilding..."; \
-		rm -f "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz"; \
-	fi
-	@if [ ! -f $(ARTIFACTS_DIR)/toolchain-$*.tar.gz ]; then \
-		echo "Toolchain artifact not found, building toolchain-$*..."; \
-		$(MAKE) toolchain-$*; \
-	fi
+builder: $(addprefix sysroot-,$(ARCHES))
+	@for a in $(ARCHES); do \
+		if [ -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" ] && ! gzip -t "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" 2>/dev/null; then \
+			echo "Corrupt toolchain archive for $$a (gzip -t failed); removing and rebuilding..."; \
+			rm -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz"; \
+		fi; \
+		if [ ! -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" ]; then \
+			echo "Toolchain artifact not found, building toolchain-$$a..."; \
+			$(MAKE) toolchain-$$a; \
+		fi; \
+	done
 	docker buildx build --load \
 		--platform=$(HOST_LINUX_PLATFORM) \
 		-f builder/Dockerfile \
-		--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-sysroot-$* \
-		--build-arg SYSROOT_PLATFORM=$(call platform,$*,platform) \
+		--build-arg IMAGE_PREFIX=$(IMAGE_PREFIX) \
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
-		--build-arg ARCH_NAME=$* \
-		--build-arg SYSROOT_NAME=$(call platform,$*,sysroot) \
-		--build-arg TARGET=$(call platform,$*,target) \
-		-t $(BUILDER_TAG_$*) \
+		-t $(BUILDER_TAG) \
 		.
 
 # -------------------------------------------------------
 # Cleanup
 # -------------------------------------------------------
-# Intermediate images only; keeps artifacts/ and final builder images.
 clean:
 	@for a in $(ARCHES); do \
 		docker rmi $(IMAGE_PREFIX)-toolchain-sysroot-$$a 2>/dev/null || true; \

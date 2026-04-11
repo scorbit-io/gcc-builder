@@ -27,6 +27,7 @@ fi
 
 source "$SCRIPT_DIR/load-platform-config.sh" "$ARCH"
 
+export PATH="/opt/${ARCH_NAME}/toolchain/bin:$PATH"
 export CC=$TARGET-gcc
 export CXX=$TARGET-g++
 export AR=$TARGET-ar
@@ -34,16 +35,15 @@ export RANLIB=$TARGET-ranlib
 export STRIP=$TARGET-strip
 export NM=$TARGET-nm
 export LD=$TARGET-ld
-export SYSROOT=/opt/$SYSROOT_NAME
+export SYSROOT=/opt/${ARCH_NAME}/sysroot
 export PREFIX=/usr/local
 export DESTDIR=$SYSROOT
 export HOST=$TARGET
-export CMAKE_TOOLCHAIN=/opt/toolchain/${ARCH_NAME}.cmake
+export CMAKE_TOOLCHAIN=/opt/${ARCH_NAME}/toolchain.cmake
 
 export CFLAGS="--sysroot=$SYSROOT -fPIC -static-libgcc"
 export CXXFLAGS="--sysroot=$SYSROOT -fPIC -static-libstdc++ -static-libgcc"
 export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/local/lib"
-# Static libatomic last on link line (autotools appends LIBS after objects). Same ordering issue as CMake.
 if [ "$ARCH_NAME" = "armhf" ]; then
     export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"
 fi

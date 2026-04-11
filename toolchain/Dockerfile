@@ -73,4 +73,5 @@ RUN /opt/scripts/build-toolchain.sh ${ARCH_NAME} ${BINUTILS_VERSION} ${GCC_VERSI
 # Export stage: contains only the cross-compiler
 # ------------------------------------------
 FROM scratch AS export
-COPY --from=builder /opt/cross /opt/cross
+ARG ARCH_NAME
+COPY --from=builder /opt/${ARCH_NAME}/toolchain /opt/${ARCH_NAME}/toolchain

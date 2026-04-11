@@ -1,35 +1,35 @@
 # syntax=docker/dockerfile:1
 # ==========================================
-# Per-Architecture Builder Image
+# Unified Multi-Architecture Builder Image
 #
-# Installs a pre-built GCC cross-toolchain, a target-platform sysroot,
-# and cross-compiled dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive)
-# installed into the sysroot at /usr/local.
+# Contains GCC cross-toolchains, target sysroots, and cross-compiled
+# dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive) for all
+# three target architectures: armhf, amd64, arm64.
 #
-# Docker layers are ordered so that changing the sysroot base image
-# does NOT invalidate the toolchain layer.
+# Layout inside the image:
+#   /opt/<arch>/toolchain/   – cross-compiler and binutils
+#   /opt/<arch>/sysroot/     – target-platform headers and libraries
+#   /opt/<arch>/toolchain.cmake – CMake toolchain file
+#   /opt/<arch>/toolchain.env   – shell environment (sourced by entrypoint)
+#   /opt/platforms.conf      – platform configuration
+#
+# At runtime, set ARCH to select the active toolchain:
+#   docker run -e ARCH=armhf gcc-builder:1 cmake ...
 #
 # Usage:
 #   docker buildx build --load --platform=linux/arm64 -f builder/Dockerfile \
-#     --build-arg SYSROOT_IMAGE=gcc-sysroot-armhf \
-#     --build-arg SYSROOT_PLATFORM=linux/arm/v7 \
+#     --build-arg IMAGE_PREFIX=gcc \
 #     --build-arg HOST_PLATFORM=linux/arm64 \
-#     --build-arg ARCH_NAME=armhf \
-#     --build-arg SYSROOT_NAME=sysroot-armhf \
-#     --build-arg TARGET=arm-linux-gnueabihf \
-#     -t gcc-builder-armhf:12.04_12 .
+#     -t gcc-builder:1 .
 # ==========================================
-# All ARGs used in any FROM must appear before the first FROM.
 
-ARG SYSROOT_IMAGE=ubuntu:24.04
-ARG SYSROOT_PLATFORM=linux/amd64
+ARG IMAGE_PREFIX=gcc
 ARG HOST_PLATFORM=linux/amd64
-# Must match toolchain/Dockerfile: the tarball’s /opt/cross/*-gcc is linked against
-# this Ubuntu’s glibc; using an older release here than for `make toolchain-*` breaks
-# execution even when the CPU architecture is correct.
 ARG HOST_UBUNTU=24.04
 
-FROM --platform=${SYSROOT_PLATFORM} ${SYSROOT_IMAGE} AS sysroot
+FROM --platform=linux/arm/v7 ${IMAGE_PREFIX}-sysroot-armhf AS sysroot_armhf
+FROM --platform=linux/amd64  ${IMAGE_PREFIX}-sysroot-amd64 AS sysroot_amd64
+FROM --platform=linux/arm64  ${IMAGE_PREFIX}-sysroot-arm64 AS sysroot_arm64
 
 FROM --platform=${HOST_PLATFORM} ubuntu:${HOST_UBUNTU}
 
@@ -78,45 +78,50 @@ RUN wget https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.
     && cd .. && rm -rf ninja-$NINJA_VER
 
 # ------------------------------------------
-# Install pre-built toolchain (cached if artifact unchanged)
+# Install pre-built toolchains for all architectures
 # ------------------------------------------
-ARG ARCH_NAME
-ARG TARGET
-ADD artifacts/toolchain-${ARCH_NAME}.tar.gz /
+ADD artifacts/toolchain-armhf.tar.gz /
+ADD artifacts/toolchain-amd64.tar.gz /
+ADD artifacts/toolchain-arm64.tar.gz /
 
-RUN if ! test -x "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; then \
-        echo "ERROR: Cross-compiler missing under /opt/cross/${TARGET}. Remove artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME}" >&2; \
-        ls -la "/opt/cross" 2>/dev/null || true; exit 1; \
+ENV PATH=/opt/armhf/toolchain/bin:/opt/amd64/toolchain/bin:/opt/arm64/toolchain/bin:$PATH
+
+# Verify each cross-compiler runs
+RUN set -e; for arch_tc in \
+        armhf:arm-linux-gnueabihf \
+        amd64:x86_64-linux-gnu \
+        arm64:aarch64-linux-gnu; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    gcc_bin="/opt/${arch}/toolchain/bin/${target}-gcc"; \
+    if ! test -x "$gcc_bin"; then \
+        echo "ERROR: Cross-compiler missing: $gcc_bin" >&2; exit 1; \
     fi; \
-    file "/opt/cross/${TARGET}/bin/${TARGET}-gcc"; \
-    if ! "/opt/cross/${TARGET}/bin/${TARGET}-gcc" --version; then \
-        echo "ERROR: Cross-compiler did not run successfully (see messages above)." >&2; \
-        echo "Typical causes: stale tarball from another CPU — delete artifacts/toolchain-${ARCH_NAME}.tar.gz and run: make toolchain-${ARCH_NAME};" >&2; \
-        echo "or builder Ubuntu is older than the OS used to build the toolchain — use the same HOST_UBUNTU for toolchains and builders (Makefile)." >&2; \
-        exit 1; \
-    fi
-
-# Put cross-compiler on PATH (needed by dep build scripts)
-ENV PATH=/opt/cross/${TARGET}/bin:$PATH
+    file "$gcc_bin"; \
+    if ! "$gcc_bin" --version; then \
+        echo "ERROR: $gcc_bin did not run. Rebuild toolchain-${arch}." >&2; exit 1; \
+    fi; \
+    done
 
 # ------------------------------------------
-# Install sysroot (invalidated when sysroot base image changes)
+# Install sysroots for all architectures
 # ------------------------------------------
-ARG SYSROOT_NAME
-COPY --from=sysroot / /opt/${SYSROOT_NAME}/
+COPY --from=sysroot_armhf / /opt/armhf/sysroot/
+COPY --from=sysroot_amd64 / /opt/amd64/sysroot/
+COPY --from=sysroot_arm64 / /opt/arm64/sysroot/
 
-# Fix absolute symlinks in sysroot to be relative
-RUN cd /opt/${SYSROOT_NAME} && \
+# Fix absolute symlinks in each sysroot to be relative
+RUN set -e; for arch in armhf amd64 arm64; do \
+    sr="/opt/${arch}/sysroot"; \
+    cd "$sr" && \
     find . -type l | while read link; do \
-        target=$(readlink "$link"); \
-        case "$target" in \
+        tgt=$(readlink "$link"); \
+        case "$tgt" in \
             /*) \
-                rel_target=$(realpath --relative-to="$(dirname "$link")" "/opt/${SYSROOT_NAME}$target" 2>/dev/null || echo "$target"); \
-                if [ "$rel_target" != "$target" ]; then \
-                    ln -sf "$rel_target" "$link"; \
-                fi \
+                rel=$(realpath --relative-to="$(dirname "$link")" "${sr}${tgt}" 2>/dev/null || echo "$tgt"); \
+                if [ "$rel" != "$tgt" ]; then ln -sf "$rel" "$link"; fi \
                 ;; \
         esac; \
+    done; \
     done
 
 # Copy scripts and platform configuration
@@ -124,107 +129,88 @@ COPY scripts/ /opt/scripts/
 COPY platforms.conf /opt/platforms.conf
 RUN chmod +x /opt/scripts/*.sh /opt/scripts/deps/*.sh
 
-# Generate CMake toolchain file (includes deps paths, -latomic for armhf, all tool paths)
-RUN /opt/scripts/generate-cmake-toolchains.sh /opt/toolchain ${ARCH_NAME}
+# Generate CMake toolchain + shell env files for all architectures
+RUN /opt/scripts/generate-toolchain-files.sh /opt
 
 RUN ln -s /opt/scripts/build-for-arch.sh /usr/local/bin/build-for-arch.sh
 
-# Verify cross-compilation works
-RUN echo '#include <stdio.h>' > /tmp/test.c && \
-    echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c && \
-    ${TARGET}-gcc --sysroot=/opt/${SYSROOT_NAME} /tmp/test.c -o /tmp/test && \
-    file /tmp/test && \
-    rm /tmp/test.c /tmp/test
+# Verify cross-compilation works for each arch
+RUN set -e; for arch_tc in \
+        armhf:arm-linux-gnueabihf \
+        amd64:x86_64-linux-gnu \
+        arm64:aarch64-linux-gnu; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    echo '#include <stdio.h>' > /tmp/test.c; \
+    echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c; \
+    ${target}-gcc --sysroot=/opt/${arch}/sysroot /tmp/test.c -o /tmp/test; \
+    file /tmp/test; \
+    rm /tmp/test.c /tmp/test; \
+    done
 
 # ------------------------------------------
-# Build cross-compiled dependencies
+# Build cross-compiled dependencies for all architectures
 # ------------------------------------------
 
-# Boost
+# Download all dependency sources once
 ARG BOOST=boost-1.90.0
-
-RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz \
-    && tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz
-
-RUN cd $BOOST && ./bootstrap.sh
-
-RUN /opt/scripts/deps/build-boost.sh "${ARCH_NAME}" "${BOOST}" \
-    && rm -rf $BOOST
-
-# OpenSSL
 ARG OPENSSL=openssl-3.5.6
-
-RUN wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz \
-    && tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz
-
-RUN /opt/scripts/deps/build-openssl.sh "${ARCH_NAME}" "${OPENSSL}" \
-    && rm -rf $OPENSSL
-
-# libpsl
 ARG LIBPSL_VER=0.21.5
 ARG LIBPSL=libpsl-$LIBPSL_VER
-
-RUN wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz \
-    && tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz
-
-RUN /opt/scripts/deps/build-libpsl.sh "${ARCH_NAME}" "${LIBPSL}" \
-    && rm -rf $LIBPSL
-
-# libcurl
 ARG CURL=curl-8.19.0
 ARG CURL_VER=8_19_0
-
-RUN wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz \
-    && tar xf $CURL.tar.xz && rm $CURL.tar.xz
-
-RUN /opt/scripts/deps/build-libcurl.sh "${ARCH_NAME}" "${CURL}" \
-    && rm -rf $CURL
-
-# libarchive
 ARG LIBARCHIVE_VER=3.8.6
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
 
-RUN wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz \
+RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz \
+    && tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz \
+    && wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz \
+    && tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz \
+    && wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz \
+    && tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz \
+    && wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz \
+    && tar xf $CURL.tar.xz && rm $CURL.tar.xz \
+    && wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz \
     && tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz
 
-RUN /opt/scripts/deps/build-libarchive.sh "${ARCH_NAME}" "${LIBARCHIVE}" \
-    && rm -rf $LIBARCHIVE
+# Boost: bootstrap once, build for all arches
+RUN cd $BOOST && ./bootstrap.sh
+
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-boost.sh "$arch" "$BOOST"; \
+    done
+
+# OpenSSL: build for all arches (Configure + make clean between each)
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-openssl.sh "$arch" "$OPENSSL"; \
+    done
+
+# libpsl: build for all arches
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libpsl.sh "$arch" "$LIBPSL"; \
+    done
+
+# libcurl: build for all arches (uses out-of-tree builds)
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libcurl.sh "$arch" "$CURL"; \
+    done
+
+# libarchive: build for all arches
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
+    done
+
+# Clean up all dependency sources
+RUN rm -rf $BOOST $OPENSSL $LIBPSL $CURL $LIBARCHIVE
 
 # ------------------------------------------
-# Cross-compilation environment for interactive use.
-# Set AFTER dep builds so native helper tools (b2, etc.) are not affected.
-#
-# With these defaults:
-#   ./configure --host=$CROSS_TARGET && make    (autotools)
-#   cmake -DCMAKE_TOOLCHAIN_FILE=$CMAKE_TOOLCHAIN_FILE -Bbuild . && cmake --build build
-#   $CC hello.c -o hello
+# Entrypoint: sources /opt/$ARCH/toolchain.env at runtime
 # ------------------------------------------
-ENV CROSS_TARGET=${TARGET}
-ENV SYSROOT=/opt/${SYSROOT_NAME}
-ENV CMAKE_TOOLCHAIN_FILE=/opt/toolchain/${ARCH_NAME}.cmake
-ENV CC=${TARGET}-gcc
-ENV CXX=${TARGET}-g++
-ENV AR=${TARGET}-ar
-ENV RANLIB=${TARGET}-ranlib
-ENV STRIP=${TARGET}-strip
-ENV NM=${TARGET}-nm
-ENV LD=${TARGET}-ld
-ENV OBJCOPY=${TARGET}-objcopy
-ENV OBJDUMP=${TARGET}-objdump
-ENV PKG_CONFIG_PATH=/opt/${SYSROOT_NAME}/usr/local/lib/pkgconfig
-ENV PKG_CONFIG_SYSROOT_DIR=/opt/${SYSROOT_NAME}
-# Match toolchain file: static libgcc / libstdc++ (libc still dynamic)
-ENV CFLAGS="-static-libgcc"
-ENV CXXFLAGS="-static-libstdc++ -static-libgcc"
+COPY builder/entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
 
-# armhf: link libatomic statically (targets without libatomic.so, e.g. old Ubuntu on device)
-RUN if [ "${ARCH_NAME}" = "armhf" ]; then \
-      printf '%s\n' \
-        '# gcc-builder: static libatomic after other libs (autotools: LIBS is appended last)' \
-        'export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"' \
-        > /etc/profile.d/gcc-armhf-libatomic.sh; \
-    fi
+ENV ARCH=amd64
 
 WORKDIR /wrk
 
+ENTRYPOINT ["/opt/entrypoint.sh"]
 CMD ["/bin/bash"]

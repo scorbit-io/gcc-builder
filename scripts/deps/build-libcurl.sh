@@ -17,12 +17,11 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$CURL_DIR"
 
-SYSROOT="/opt/${SYSROOT_NAME}"
+SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
-# Build libcurl using CMake
 build-for-arch.sh "$ARCH_NAME" \
     cmake -GNinja -Bbuild-${ARCH_NAME} \
-        -DCMAKE_TOOLCHAIN_FILE=/opt/toolchain/${ARCH_NAME}.cmake \
+        -DCMAKE_TOOLCHAIN_FILE=/opt/${ARCH_NAME}/toolchain.cmake \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX=/usr/local \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \

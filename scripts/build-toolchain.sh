@@ -18,7 +18,7 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/load-platform-config.sh" "$ARCH_NAME"
 
-export PREFIX="/opt/cross/$TARGET"
+export PREFIX="/opt/${ARCH_NAME}/toolchain"
 export SYSROOT="/opt/$SYSROOT_NAME"
 export BUILD_DIR="${BUILD_DIR:-/opt/toolchain-build}"
 

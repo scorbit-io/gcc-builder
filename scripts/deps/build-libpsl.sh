@@ -17,7 +17,7 @@ source "${SCRIPT_DIR}/../load-platform-config.sh" "$ARCH_NAME"
 
 cd "$LIBPSL_DIR"
 
-SYSROOT="/opt/${SYSROOT_NAME}"
+SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
 # Build libpsl using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
