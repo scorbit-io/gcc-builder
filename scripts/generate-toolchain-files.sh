@@ -86,6 +86,15 @@ string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT    " -L\${CMAKE_SYSROOT}/usr/local/lib
 string(APPEND CMAKE_SHARED_LINKER_FLAGS_INIT " -L\${CMAKE_SYSROOT}/usr/local/lib")
 string(APPEND CMAKE_MODULE_LINKER_FLAGS_INIT " -L\${CMAKE_SYSROOT}/usr/local/lib")
 
+# Resolve DT_NEEDED of shared libs (libusb -> libudev, libsystemd -> lzma/lz4/gcrypt, etc.)
+# when they live under Debian/Ubuntu multiarch paths.
+string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT    " -Wl,-rpath-link=\${CMAKE_SYSROOT}/lib/${target}")
+string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT    " -Wl,-rpath-link=\${CMAKE_SYSROOT}/usr/lib/${target}")
+string(APPEND CMAKE_SHARED_LINKER_FLAGS_INIT " -Wl,-rpath-link=\${CMAKE_SYSROOT}/lib/${target}")
+string(APPEND CMAKE_SHARED_LINKER_FLAGS_INIT " -Wl,-rpath-link=\${CMAKE_SYSROOT}/usr/lib/${target}")
+string(APPEND CMAKE_MODULE_LINKER_FLAGS_INIT " -Wl,-rpath-link=\${CMAKE_SYSROOT}/lib/${target}")
+string(APPEND CMAKE_MODULE_LINKER_FLAGS_INIT " -Wl,-rpath-link=\${CMAKE_SYSROOT}/usr/lib/${target}")
+
 set(ENV{PKG_CONFIG_PATH}        "\${CMAKE_SYSROOT}/usr/local/lib/pkgconfig")
 set(ENV{PKG_CONFIG_SYSROOT_DIR} "\${CMAKE_SYSROOT}")
 

@@ -43,7 +43,7 @@ export CMAKE_TOOLCHAIN=/opt/${ARCH_NAME}/toolchain.cmake
 
 export CFLAGS="--sysroot=$SYSROOT -fPIC -static-libgcc"
 export CXXFLAGS="--sysroot=$SYSROOT -fPIC -static-libstdc++ -static-libgcc"
-export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/local/lib"
+export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/local/lib -Wl,-rpath-link=$SYSROOT/lib/$TARGET -Wl,-rpath-link=$SYSROOT/usr/lib/$TARGET"
 if [ "$ARCH_NAME" = "armhf" ]; then
     export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"
 fi
