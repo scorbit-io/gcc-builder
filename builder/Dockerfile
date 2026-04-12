@@ -3,7 +3,7 @@
 # Unified Multi-Architecture Builder Image
 #
 # Contains GCC cross-toolchains, target sysroots, and cross-compiled
-# dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive) for all
+# dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive, libuuid, libusb) for all
 # three target architectures: armhf, amd64, arm64.
 #
 # Layout inside the image:
@@ -160,6 +160,11 @@ ARG CURL=curl-8.19.0
 ARG CURL_VER=8_19_0
 ARG LIBARCHIVE_VER=3.8.6
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
+ARG UTIL_LINUX_SERIES=2.41
+ARG UTIL_LINUX_VER=2.41.4
+ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
+ARG LIBUSB_VER=1.0.29
+ARG LIBUSB=libusb-$LIBUSB_VER
 
 RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz \
     && tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz \
@@ -170,7 +175,11 @@ RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-no
     && wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz \
     && tar xf $CURL.tar.xz && rm $CURL.tar.xz \
     && wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz \
-    && tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz
+    && tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz \
+    && wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz \
+    && tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz \
+    && wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 \
+    && tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2
 
 # Boost: bootstrap once, build for all arches
 RUN cd $BOOST && ./bootstrap.sh
@@ -199,8 +208,18 @@ RUN set -e; for arch in armhf amd64 arm64; do \
         /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
     done
 
+# libuuid (util-linux): build for all arches
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libuuid.sh "$arch" "$UTIL_LINUX"; \
+    done
+
+# libusb: build for all arches (static, no udev)
+RUN set -e; for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libusb.sh "$arch" "$LIBUSB"; \
+    done
+
 # Clean up all dependency sources
-RUN rm -rf $BOOST $OPENSSL $LIBPSL $CURL $LIBARCHIVE
+RUN rm -rf $BOOST $OPENSSL $LIBPSL $CURL $LIBARCHIVE $UTIL_LINUX $LIBUSB
 
 # ------------------------------------------
 # Entrypoint: sources /opt/$ARCH/toolchain.env at runtime
