@@ -12,7 +12,7 @@ set -e
 BASE_DIR="${1:-/opt}"
 ARCH_FILTER="${2:-}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
+CONFIG_FILE="${PLATFORM_CONFIG:-${SCRIPT_DIR}/../platforms.conf}"
 
 while IFS='|' read -r arch target sysroot platform base_image sysroot_dockerfile cmake_proc cmake_flags rest; do
     [[ "$arch" =~ ^#.*$ ]] && continue
@@ -65,11 +65,22 @@ string(APPEND CMAKE_C_FLAGS_INIT " -static-libgcc")
 string(APPEND CMAKE_CXX_FLAGS_INIT " -static-libstdc++ -static-libgcc")
 EOF
 
-    if [ "$arch" = "armhf" ]; then
+    if [ "$arch" = "armhf" ] || [ "$arch" = "musl-armhf" ] || [ "$arch" = "musl-armel" ]; then
         cat >> "$CMAKE_FILE" <<'EOF'
 
 string(APPEND CMAKE_C_STANDARD_LIBRARIES " -Wl,-Bstatic -latomic -Wl,-Bdynamic")
 string(APPEND CMAKE_CXX_STANDARD_LIBRARIES " -Wl,-Bstatic -latomic -Wl,-Bdynamic")
+EOF
+    fi
+
+    if [[ "$arch" == musl-* ]]; then
+        cat >> "$CMAKE_FILE" <<EOF
+
+# Debian bookworm musl sysroots: headers under usr/include/${target} (and shared usr/include).
+string(APPEND CMAKE_C_FLAGS_INIT " -isystem \${CMAKE_SYSROOT}/usr/include/${target} -isystem \${CMAKE_SYSROOT}/usr/include")
+string(APPEND CMAKE_CXX_FLAGS_INIT " -isystem \${CMAKE_SYSROOT}/usr/include/${target} -isystem \${CMAKE_SYSROOT}/usr/include")
+# Musl builder: link fully static executables by default (override for shared if needed).
+string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT " -static")
 EOF
     fi
 
@@ -132,10 +143,21 @@ export CFLAGS="-static-libgcc"
 export CXXFLAGS="-static-libstdc++ -static-libgcc"
 EOF
 
-    if [ "$arch" = "armhf" ]; then
+    if [ "$arch" = "armhf" ] || [ "$arch" = "musl-armhf" ] || [ "$arch" = "musl-armel" ]; then
         cat >> "$ENV_FILE" <<'EOF'
 
 export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"
+EOF
+    fi
+
+    if [[ "$arch" == musl-* ]]; then
+        cat >> "$ENV_FILE" <<EOF
+
+# Debian musl sysroot include layout (matches Dockerfile.musl smoke test).
+export CFLAGS="\${CFLAGS} -isystem \${SYSROOT}/usr/include/${target} -isystem \${SYSROOT}/usr/include"
+export CXXFLAGS="\${CXXFLAGS} -isystem \${SYSROOT}/usr/include/${target} -isystem \${SYSROOT}/usr/include"
+# Fully static musl binaries (default for gcc-builder-musl). Unset or override for shared builds.
+export LDFLAGS="-static"
 EOF
     fi
 

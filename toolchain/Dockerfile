@@ -60,7 +60,8 @@ RUN wget -q https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/binutils/binutil
     && cd ..
 
 COPY scripts/ /opt/scripts/
-COPY platforms.conf /opt/platforms.conf
+ARG PLATFORMS_FILE=platforms.conf
+COPY ${PLATFORMS_FILE} /opt/platforms.conf
 RUN chmod +x /opt/scripts/*.sh
 
 ARG ARCH_NAME

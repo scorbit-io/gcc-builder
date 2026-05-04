@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Musl development sysroot for ARM hard-float (armhf / arm-linux-musleabihf), Debian bookworm.
+# Same base series as musl-armel (arm32v*/debian:bookworm-slim) for a single musl sysroot policy.
+
+FROM arm32v7/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

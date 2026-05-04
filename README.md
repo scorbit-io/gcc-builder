@@ -101,7 +101,81 @@ make push
 | `builder`    | Build the unified builder image with all 3 architectures. Auto-builds missing toolchain artifacts.                                                                                                          |
 | `clean`      | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or the builder image. |
 | `clean-all`  | Runs `clean`, then deletes `artifacts/`. Does **not** remove the builder image.                                                                                                                             |
-| `push`       | Runs `docker push` for the builder tag. Expects the image already built and tagged; requires `docker login`. Set `**DOCKER_USER*`* for normal Docker Hub names (`user/gcc-builder:…`).                      |
+| `push`       | Runs `docker push` for the builder tag. Expects the image already built and tagged; requires `docker login`. Set `**DOCKER_USER**` for normal Docker Hub names (`user/gcc-builder:…`).                      |
+
+
+## Using gcc-builder from application repos
+
+The unified image is meant to be pulled or built once, then reused from CI or local
+CMake projects. Two Scorbit repositories consume it this way:
+
+| Repository   | Typical path                         | Role |
+| ------------ | ------------------------------------ | ---- |
+| Scorbit SDK  | `~/work/scorbit/scorbit_sdk`         | Linux SDK (`.deb` / `.tar.gz`), encrypt tool, Python wheels |
+| scorbitd     | `~/work/scorbit/scorbitd`            | Daemon / service builds for Linux targets |
+
+Both read the image tag from a one-line **`DOCKER_RELEASE`** file at the repo root
+(same idea as this project). **`DOCKER_RELEASE` must match** the tag you built or
+pulled here (for example `12` → image `…/gcc-builder:12`).
+
+### 1. Produce the image (`gcc-builder`)
+
+From this repository:
+
+```bash
+cd ~/work/scorbit/gcc-builder
+# Set DOCKER_RELEASE via .env, DOCKER_RELEASE file, or: make DOCKER_RELEASE=12 …
+make all          # toolchains + unified builder, or: make builder
+# Optional: publish (set DOCKER_USER for hub-style names, e.g. dilshodm/gcc-builder:12)
+make push
+```
+
+Use the **same host platform** you will use to run Docker in the SDK/scorbitd
+repos (`HOST_LINUX_PLATFORM` / `DOCKER_HOST_PLATFORM`; see [Host platform](#host-platform)).
+If the consumer machine cannot run the image’s architecture, `docker pull` / `make armhf`
+will fail in confusing ways.
+
+### 2. Point the app repo at that tag
+
+- Ensure **`DOCKER_RELEASE`** in `~/work/scorbit/scorbit_sdk/DOCKER_RELEASE` (or
+  `~/work/scorbit/scorbitd/DOCKER_RELEASE`) equals the tag you built.
+- By default, `scripts/linux-build.sh` uses **`dilshodm/gcc-builder:${REL}`**. If you
+  build locally **without** `DOCKER_USER`, your image is `gcc-builder:${REL}` instead;
+  change the `DOCKER_IMAGE=…` line in that script (or fork the pattern) to match.
+
+### 3. Run Linux builds from the SDK or scorbitd
+
+**Scorbit SDK** — mounts the tree at `/src`, sets `-e ARCH=…`, and runs
+`scripts/build-core.sh` (CMake + Ninja + cpack). Example:
+
+```bash
+cd ~/work/scorbit/scorbit_sdk
+make armhf        # or: make arm64 / make amd64
+# Optional: make python   # wheel build; same gcc-builder image via docker_build_wheel
+```
+
+**scorbitd** — same `scripts/linux-build.sh` / `_common.sh` pattern:
+
+```bash
+cd ~/work/scorbit/scorbitd
+make armhf        # or: make arm64 / make amd64 (see that repo’s Makefile for default `all`)
+```
+
+What happens under the hood (both repos):
+
+1. `scripts/linux-build.sh <arch>` loads `DOCKER_RELEASE`, picks ABI labels per arch,
+   and calls `build_using_docker` in `scripts/_common.sh`.
+2. `docker_build` runs a container with **`-e ARCH=$ARCH`**, the repo bind-mounted at
+   **`/src`**, and `CPM_SOURCE_CACHE` under `build/_cache`.
+3. The image **`ENTRYPOINT`** runs `builder/entrypoint.sh`, which sources
+   **`/opt/$ARCH/toolchain.env`** so `CC`, `CXX`, `SYSROOT`, **`CMAKE_TOOLCHAIN_FILE`**, etc.
+   are set before `bash -c` runs your command.
+4. `scripts/build-core.sh` passes **`-DCMAKE_TOOLCHAIN_FILE=…`** explicitly to CMake when
+   that variable is set (required for nested dependencies).
+
+If CMake cannot find the compiler, confirm **`docker images`** lists your tag and that
+you did not build toolchains on a different CPU than `HOST_LINUX_PLATFORM` implies
+(see [Configuration](#configuration) and tarball notes there).
 
 
 ## Using the builder image

@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Minimal musl headers/libs on Debian armel for building GCC (same ABI as target sysroot).
+# See sysroots/Dockerfile.debian-musl-armel — Alpine is unavailable for linux/arm/v5.
+
+FROM arm32v5/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

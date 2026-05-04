@@ -1,11 +1,18 @@
 #!/bin/bash
-# Load platform configuration from platforms.conf
+# Load platform configuration from platforms.conf (or PLATFORM_CONFIG path).
 # Usage: source load-platform-config.sh <arch_name>
 # Sets: ARCH_NAME, TARGET, SYSROOT_NAME, DOCKER_PLATFORM, BASE_IMAGE, SYSROOT_DOCKERFILE, CMAKE_PROCESSOR, CMAKE_FLAGS
 
 ARCH_NAME="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
+if [ -n "${PLATFORM_CONFIG:-}" ]; then
+    case "$PLATFORM_CONFIG" in
+        /*) CONFIG_FILE="$PLATFORM_CONFIG" ;;
+        *)  CONFIG_FILE="$SCRIPT_DIR/../$PLATFORM_CONFIG" ;;
+    esac
+else
+    CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
+fi
 
 if [ -z "$ARCH_NAME" ]; then
     echo "Error: Architecture name required" >&2

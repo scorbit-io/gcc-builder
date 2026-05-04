@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Minimal musl headers/libs on Debian armhf (armv7) for building GCC (same ABI as target sysroot).
+# Matches sysroots/Dockerfile.debian-musl-armhf — same family as musl-armel (bookworm-slim).
+
+FROM arm32v7/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

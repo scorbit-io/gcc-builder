@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Minimal musl headers/libs on Debian arm64 for building GCC (same ABI as target sysroot).
+# Matches sysroots/Dockerfile.debian-musl-arm64 — bookworm-slim with other musl arches.
+
+FROM arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

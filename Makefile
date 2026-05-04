@@ -30,7 +30,13 @@ DOCKER_REPO_PREFIX := $(if $(strip $(DOCKER_USER)),$(DOCKER_USER)/,)
 DOCKER_RELEASE_FILE ?= DOCKER_RELEASE
 DOCKER_RELEASE      ?= $(shell cat $(DOCKER_RELEASE_FILE) 2>/dev/null | tr -d ' \t\n\r')
 ifeq ($(DOCKER_RELEASE),)
-ifneq ($(filter-out help clean clean-all,$(MAKECMDGOALS)),)
+# Musl tarball/sysroot targets do not need a release tag (builder-musl / push-musl still do).
+DOCKER_RELEASE_EXEMPT := help clean clean-all \
+	musl-toolchains \
+	musl-toolchain-armhf musl-toolchain-armel musl-toolchain-arm64 \
+	musl-toolchain-sysroot-armhf musl-toolchain-sysroot-armel musl-toolchain-sysroot-arm64 \
+	musl-sysroot-armhf musl-sysroot-armel musl-sysroot-arm64
+ifneq ($(filter-out $(DOCKER_RELEASE_EXEMPT),$(MAKECMDGOALS)),)
 $(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE), or use .env — run `make help`)
 endif
 endif
@@ -64,7 +70,14 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-.PHONY: help all toolchains builder clean clean-all push
+MUSL_ARCHES := armhf armel arm64
+PLATFORMS_MUSL := platforms-musl.conf
+# musl-$(stem) e.g. musl-armhf — arch keys in platforms-musl.conf
+platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUSL))
+
+MUSL_BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
+
+.PHONY: help all toolchains builder builder-musl musl-toolchains clean clean-all push push-musl
 
 .DEFAULT_GOAL := help
 
@@ -76,22 +89,52 @@ help:
 	@echo '  all             All toolchain archives, then unified builder image'
 	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builder         Unified builder image with all 3 architectures'
+	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64, static defaults)'
+	@echo '  musl-toolchains musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
 	@echo '  push            docker push the builder tag (requires docker login; set DOCKER_USER)'
+	@echo '  push-musl       docker push gcc-builder-musl tag'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
 	@echo '  sysroot-<arch>             Target sysroot image for the builder'
 	@echo '  toolchain-<arch>           Cross toolchain tarball'
 	@echo ''
-	@echo 'Configuration (need DOCKER_RELEASE for any build except clean/clean-all/help):'
+	@echo 'Configuration: set DOCKER_RELEASE (file $(DOCKER_RELEASE_FILE) or .env). Not required for: help, clean*, musl-toolchains, musl-toolchain-*, musl-sysroot-*, musl-toolchain-sysroot-*.'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
 	@echo '  Optional: DOCKER_USER, DOCKER_HOST_PLATFORM, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM, HOST_UBUNTU'
 	@echo ''
 	@echo 'See README.md for full documentation.'
 
 all: toolchains builder
+
+musl-toolchains: $(addprefix musl-toolchain-,$(MUSL_ARCHES))
+
+builder-musl: $(addprefix musl-sysroot-,$(MUSL_ARCHES))
+	@set -e; for a in $(MUSL_ARCHES); do \
+		art="$(ARTIFACTS_DIR)/musl-toolchain-$$a.tar.gz"; \
+		if [ -f "$$art" ] && ! gzip -t "$$art" 2>/dev/null; then \
+			echo "Corrupt musl toolchain archive for $$a; removing..."; \
+			rm -f "$$art"; \
+		fi; \
+		if [ ! -f "$$art" ]; then \
+			echo "Musl toolchain artifact not found, building musl-toolchain-$$a..."; \
+			$(MAKE) musl-toolchain-$$a; \
+		fi; \
+		test -f "$$art" || { echo "Missing musl toolchain archive after build: $$art" >&2; exit 1; }; \
+	done
+	docker buildx build --load \
+		--platform=$(HOST_LINUX_PLATFORM) \
+		-f builder/Dockerfile.musl \
+		--build-arg IMAGE_PREFIX=$(IMAGE_PREFIX) \
+		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
+		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
+		-t $(MUSL_BUILDER_TAG) \
+		.
+
+push-musl:
+	docker push $(MUSL_BUILDER_TAG)
 
 toolchains: $(addprefix toolchain-,$(ARCHES))
 
@@ -149,15 +192,17 @@ toolchain-%: toolchain-sysroot-%
 # Layer 3: Unified builder image (all architectures)
 # -------------------------------------------------------
 builder: $(addprefix sysroot-,$(ARCHES))
-	@for a in $(ARCHES); do \
-		if [ -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" ] && ! gzip -t "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" 2>/dev/null; then \
+	@set -e; for a in $(ARCHES); do \
+		art="$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz"; \
+		if [ -f "$$art" ] && ! gzip -t "$$art" 2>/dev/null; then \
 			echo "Corrupt toolchain archive for $$a (gzip -t failed); removing and rebuilding..."; \
-			rm -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz"; \
+			rm -f "$$art"; \
 		fi; \
-		if [ ! -f "$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz" ]; then \
+		if [ ! -f "$$art" ]; then \
 			echo "Toolchain artifact not found, building toolchain-$$a..."; \
 			$(MAKE) toolchain-$$a; \
 		fi; \
+		test -f "$$art" || { echo "Missing toolchain archive after build: $$art" >&2; exit 1; }; \
 	done
 	docker buildx build --load \
 		--platform=$(HOST_LINUX_PLATFORM) \
@@ -171,10 +216,78 @@ builder: $(addprefix sysroot-,$(ARCHES))
 # -------------------------------------------------------
 # Cleanup
 # -------------------------------------------------------
+# Musl layer 1a / 1b / 2 (names chosen so they do not match toolchain-% / sysroot-% patterns)
+# Musl toolchain sysroots: Debian bookworm-slim (arm32v7 armhf, arm32v5 armel, arm64v8 arm64).
+musl-toolchain-sysroot-armhf:
+	docker build \
+		--platform=$(call platform_musl,armhf,platform) \
+		-f toolchain-sysroots/Dockerfile.debian-musl-armhf \
+		-t $(IMAGE_PREFIX)-musl-toolchain-sysroot-armhf \
+		toolchain-sysroots/
+
+musl-toolchain-sysroot-armel:
+	docker build \
+		--platform=$(call platform_musl,armel,platform) \
+		-f toolchain-sysroots/Dockerfile.debian-musl-armel \
+		-t $(IMAGE_PREFIX)-musl-toolchain-sysroot-armel \
+		toolchain-sysroots/
+
+musl-toolchain-sysroot-arm64:
+	docker build \
+		--platform=$(call platform_musl,arm64,platform) \
+		-f toolchain-sysroots/Dockerfile.debian-musl-arm64 \
+		-t $(IMAGE_PREFIX)-musl-toolchain-sysroot-arm64 \
+		toolchain-sysroots/
+
+musl-sysroot-armhf:
+	docker build \
+		--platform=$(call platform_musl,armhf,platform) \
+		-f sysroots/Dockerfile.debian-musl-armhf \
+		-t $(IMAGE_PREFIX)-musl-sysroot-armhf \
+		sysroots/
+
+musl-sysroot-armel:
+	docker build \
+		--platform=$(call platform_musl,armel,platform) \
+		-f sysroots/Dockerfile.debian-musl-armel \
+		-t $(IMAGE_PREFIX)-musl-sysroot-armel \
+		sysroots/
+
+musl-sysroot-arm64:
+	docker build \
+		--platform=$(call platform_musl,arm64,platform) \
+		-f sysroots/Dockerfile.debian-musl-arm64 \
+		-t $(IMAGE_PREFIX)-musl-sysroot-arm64 \
+		sysroots/
+
+musl-toolchain-%: musl-toolchain-sysroot-%
+	mkdir -p $(ARTIFACTS_DIR)
+	bash -c 'set -euo pipefail; \
+		docker buildx build \
+			--platform=$(HOST_LINUX_PLATFORM) \
+			-f toolchain/Dockerfile \
+			--build-arg SYSROOT_IMAGE=$(IMAGE_PREFIX)-musl-toolchain-sysroot-$* \
+			--build-arg SYSROOT_PLATFORM=$(call platform_musl,$*,platform) \
+			--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
+			--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
+			--build-arg ARCH_NAME=musl-$* \
+			--build-arg SYSROOT_NAME=$(call platform_musl,$*,sysroot) \
+			--build-arg BINUTILS_VERSION=$(BINUTILS_VERSION) \
+			--build-arg GCC_VERSION=$(GCC_VERSION) \
+			--build-arg PLATFORMS_FILE=$(PLATFORMS_MUSL) \
+			--target export \
+			--output type=tar,dest=- . \
+		| gzip > "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz.tmp" && \
+		mv "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz"'
+
 clean:
 	@for a in $(ARCHES); do \
 		docker rmi $(IMAGE_PREFIX)-toolchain-sysroot-$$a 2>/dev/null || true; \
 		docker rmi $(IMAGE_PREFIX)-sysroot-$$a 2>/dev/null || true; \
+	done
+	@for a in $(MUSL_ARCHES); do \
+		docker rmi $(IMAGE_PREFIX)-musl-toolchain-sysroot-$$a 2>/dev/null || true; \
+		docker rmi $(IMAGE_PREFIX)-musl-sysroot-$$a 2>/dev/null || true; \
 	done
 
 clean-all: clean

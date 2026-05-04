@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+# Musl development sysroot for ARM soft-float (armel / arm-linux-musleabi).
+# Alpine has no linux/arm/v5 (nor arm32v5/alpine) in Docker Hub manifests; Debian bookworm does.
+
+FROM arm32v5/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

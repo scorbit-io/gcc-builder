@@ -1,0 +1,9 @@
+# syntax=docker/dockerfile:1
+# Musl development sysroot for AArch64 (arm64 / aarch64-linux-musl), Debian bookworm.
+
+FROM arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    musl-dev \
+    linux-libc-dev \
+    && rm -rf /var/lib/apt/lists/*

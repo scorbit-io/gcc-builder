@@ -70,9 +70,25 @@ cd "gcc-${ARCH_NAME}"
 # ATOMIC_INT_LOCK_FREE==1, causing futex/atomic code to be omitted from
 # libstdc++.a — but user code compiled with -march=armv7-a expects it.
 EXTRA_GCC_OPTS=""
+GCC_INSTALL_TARGET="install-strip"
 case "$ARCH_NAME" in
     armhf)
         EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=neon-vfpv4 --with-float=hard"
+        ;;
+    musl-armhf)
+        # Musl + libstdc++: PCH / embedded libbacktrace can fail cross-builds; skip strip on target.
+        EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=vfpv3 --with-float=hard"
+        EXTRA_GCC_OPTS+=" --disable-libstdcxx-pch --disable-libstdcxx-backtrace"
+        GCC_INSTALL_TARGET="install"
+        ;;
+    musl-armel)
+        EXTRA_GCC_OPTS="--with-arch=armv5te --with-float=soft"
+        EXTRA_GCC_OPTS+=" --disable-libstdcxx-pch --disable-libstdcxx-backtrace"
+        GCC_INSTALL_TARGET="install"
+        ;;
+    musl-arm64)
+        EXTRA_GCC_OPTS="--disable-libstdcxx-pch --disable-libstdcxx-backtrace"
+        GCC_INSTALL_TARGET="install"
         ;;
 esac
 
@@ -99,7 +115,7 @@ LDFLAGS="-L/usr/lib/$(gcc -dumpmachine)" \
     --with-build-time-tools="$PREFIX/$TARGET/bin" \
     $EXTRA_GCC_OPTS
 make -j$(nproc)
-make install-strip
+make "$GCC_INSTALL_TARGET"
 cd "$BUILD_DIR"
 rm -rf "gcc-${ARCH_NAME}"
 

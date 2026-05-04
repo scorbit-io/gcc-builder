@@ -1,16 +1,22 @@
 #!/bin/bash
-# Parse a single field from platforms.conf for a given architecture.
-# Usage: parse-platform.sh <arch_name> <field_name>
+# Parse a single field from platforms.conf (or another pipe table) for a given architecture.
+# Usage: parse-platform.sh <arch_name> <field_name> [config_file]
 # Fields: target, sysroot, platform, base_image, sysroot_dockerfile, cmake_proc, cmake_flags
 
 ARCH="$1"
 FIELD="$2"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
+if [ -n "${3:-}" ]; then
+    case "$3" in
+        /*) CONFIG_FILE="$3" ;;
+        *)  CONFIG_FILE="$SCRIPT_DIR/../$3" ;;
+    esac
+else
+    CONFIG_FILE="${SCRIPT_DIR}/../platforms.conf"
+fi
 
 if [ -z "$ARCH" ] || [ -z "$FIELD" ]; then
-    echo "Usage: parse-platform.sh <arch_name> <field_name>" >&2
+    echo "Usage: parse-platform.sh <arch_name> <field_name> [config_file]" >&2
     exit 1
 fi
 

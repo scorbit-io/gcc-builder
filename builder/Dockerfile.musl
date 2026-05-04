@@ -1,0 +1,135 @@
+# syntax=docker/dockerfile:1
+# ==========================================
+# Musl-only static builder (armhf + armel + arm64)
+#
+# Image tag (Makefile): gcc-builder-musl:<DOCKER_RELEASE>
+#
+# Layout:
+#   /opt/musl-armhf/   arm-linux-musleabihf (Debian bookworm arm32v7 musl sysroot)
+#   /opt/musl-armel/   arm-linux-musleabi   (Debian bookworm arm32v5 musl sysroot)
+#   /opt/musl-arm64/   aarch64-linux-musl   (Debian bookworm arm64v8 musl sysroot)
+#
+# Runtime: ARCH=musl-armhf | musl-armel | musl-arm64 (default: musl-armhf)
+#   docker run -e ARCH=musl-arm64 $(MUSL_BUILDER_TAG) aarch64-linux-musl-gcc --version
+#
+# Toolchain files default to fully static linking (see toolchain.env / toolchain.cmake).
+# ==========================================
+
+ARG IMAGE_PREFIX=gcc
+ARG HOST_PLATFORM=linux/amd64
+ARG HOST_UBUNTU=22.04
+
+FROM --platform=linux/arm/v7 ${IMAGE_PREFIX}-musl-sysroot-armhf AS sysroot_musl_armhf
+FROM --platform=linux/arm/v5 ${IMAGE_PREFIX}-musl-sysroot-armel AS sysroot_musl_armel
+FROM --platform=linux/arm64 ${IMAGE_PREFIX}-musl-sysroot-arm64 AS sysroot_musl_arm64
+
+FROM --platform=${HOST_PLATFORM} ubuntu:${HOST_UBUNTU}
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    make \
+    file \
+    libgmp10 \
+    libmpfr6 \
+    libmpc3 \
+    libisl23 \
+    libzstd1 \
+    zlib1g \
+    build-essential \
+    wget \
+    curl \
+    git \
+    pkg-config \
+    perl \
+    ca-certificates \
+    xz-utils \
+    python3 \
+    && update-ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG CMAKE_VERSION=4.3.1
+RUN ARCH=$(uname -m) \
+    && wget https://github.com/dilshodm/cmake-arm32v7/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-Linux-$ARCH.sh \
+    && sh cmake-$CMAKE_VERSION-Linux-$ARCH.sh --skip-license --prefix=/usr \
+    && rm cmake-$CMAKE_VERSION-Linux-$ARCH.sh
+
+ARG NINJA_VER=1.13.2
+RUN wget https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.gz -O ninja.tar.gz \
+    && tar xf ninja.tar.gz && rm ninja.tar.gz && cd ninja-$NINJA_VER \
+    && cmake -B build -DBUILD_TESTING=OFF -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build --parallel \
+    && cmake --install build \
+    && cd .. && rm -rf ninja-$NINJA_VER
+
+ADD artifacts/musl-toolchain-armhf.tar.gz /
+ADD artifacts/musl-toolchain-armel.tar.gz /
+ADD artifacts/musl-toolchain-arm64.tar.gz /
+
+ENV PATH=/opt/musl-armhf/toolchain/bin:/opt/musl-armel/toolchain/bin:/opt/musl-arm64/toolchain/bin:$PATH
+
+RUN set -e; for arch_tc in \
+        musl-armhf:arm-linux-musleabihf \
+        musl-armel:arm-linux-musleabi \
+        musl-arm64:aarch64-linux-musl; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    gcc_bin="/opt/${arch}/toolchain/bin/${target}-gcc"; \
+    if ! test -x "$gcc_bin"; then \
+        echo "ERROR: Cross-compiler missing: $gcc_bin" >&2; exit 1; \
+    fi; \
+    file "$gcc_bin"; \
+    if ! "$gcc_bin" --version; then \
+        echo "ERROR: $gcc_bin did not run." >&2; exit 1; \
+    fi; \
+    done
+
+COPY --from=sysroot_musl_armhf / /opt/musl-armhf/sysroot/
+COPY --from=sysroot_musl_armel / /opt/musl-armel/sysroot/
+COPY --from=sysroot_musl_arm64 / /opt/musl-arm64/sysroot/
+
+RUN set -e; for arch in musl-armhf musl-armel musl-arm64; do \
+    sr="/opt/${arch}/sysroot"; \
+    cd "$sr" && \
+    find . -type l | while read link; do \
+        tgt=$(readlink "$link"); \
+        case "$tgt" in \
+            /*) \
+                rel=$(realpath --relative-to="$(dirname "$link")" "${sr}${tgt}" 2>/dev/null || echo "$tgt"); \
+                if [ "$rel" != "$tgt" ]; then ln -sf "$rel" "$link"; fi \
+                ;; \
+        esac; \
+    done; \
+    done
+
+COPY scripts/ /opt/scripts/
+COPY platforms-musl.conf /opt/platforms.conf
+RUN chmod +x /opt/scripts/*.sh /opt/scripts/deps/*.sh
+
+RUN /opt/scripts/generate-toolchain-files.sh /opt
+
+RUN ln -s /opt/scripts/build-for-arch.sh /usr/local/bin/build-for-arch.sh
+
+RUN set -e; for arch_tc in \
+        musl-armhf:arm-linux-musleabihf \
+        musl-armel:arm-linux-musleabi \
+        musl-arm64:aarch64-linux-musl; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    echo '#include <stdio.h>' > /tmp/test.c; \
+    echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c; \
+    sr="/opt/${arch}/sysroot"; \
+    ${target}-gcc --sysroot="$sr" \
+        -isystem "$sr/usr/include/${target}" -isystem "$sr/usr/include" \
+        /tmp/test.c -o /tmp/test -static; \
+    file /tmp/test; \
+    rm /tmp/test.c /tmp/test; \
+    done
+
+COPY builder/entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
+
+ENV ARCH=musl-armhf
+
+WORKDIR /wrk
+
+ENTRYPOINT ["/opt/entrypoint.sh"]
+CMD ["/bin/bash"]
