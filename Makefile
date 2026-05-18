@@ -101,7 +101,8 @@ platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUS
 MUSL_BUILDER_TAG      := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
 MUSL_BUILDER_TAG_ARCH := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)-$(HOST_ARCH)
 
-.PHONY: help all toolchains builder builder-musl python-builder musl-toolchains clean clean-all push push-musl push-python
+.PHONY: help all toolchains builder builder-musl python-builder musl-toolchains clean clean-all \
+	push push-musl push-python manifest manifest-python manifest-musl
 
 .DEFAULT_GOAL := help
 
@@ -121,6 +122,8 @@ help:
 	@echo '  push            docker push gcc-builder:$(DOCKER_RELEASE)-<host-arch> for this host'
 	@echo '  push-python     docker push python-builder:$(DOCKER_RELEASE)-<host-arch>'
 	@echo '  push-musl       docker push gcc-builder-musl:$(DOCKER_RELEASE)-<host-arch>'
+	@echo '  manifest        Merge pushed per-arch gcc-builder tags into :$(DOCKER_RELEASE) (imagetools)'
+	@echo '  manifest-python / manifest-musl   Same for python-builder / gcc-builder-musl'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
@@ -179,6 +182,30 @@ ifeq ($(strip $(DOCKER_USER)),)
 	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
 endif
 	docker push $(PYTHON_BUILDER_TAG_ARCH)
+
+manifest:
+	@set -e; \
+	archs="$$(scripts/discover-host-archs.sh $(DOCKER_RELEASE) gcc-builder)"; \
+	tags=""; \
+	for a in $$archs; do tags="$$tags $(BUILDER_TAG)-$$a"; done; \
+	echo "docker buildx imagetools create -t $(BUILDER_TAG)$$tags"; \
+	docker buildx imagetools create -t $(BUILDER_TAG) $$tags
+
+manifest-python:
+	@set -e; \
+	archs="$$(scripts/discover-host-archs.sh $(DOCKER_RELEASE) python-builder)"; \
+	tags=""; \
+	for a in $$archs; do tags="$$tags $(PYTHON_BUILDER_TAG)-$$a"; done; \
+	echo "docker buildx imagetools create -t $(PYTHON_BUILDER_TAG)$$tags"; \
+	docker buildx imagetools create -t $(PYTHON_BUILDER_TAG) $$tags
+
+manifest-musl:
+	@set -e; \
+	archs="$$(scripts/discover-host-archs.sh $(DOCKER_RELEASE) gcc-builder-musl)"; \
+	tags=""; \
+	for a in $$archs; do tags="$$tags $(MUSL_BUILDER_TAG)-$$a"; done; \
+	echo "docker buildx imagetools create -t $(MUSL_BUILDER_TAG)$$tags"; \
+	docker buildx imagetools create -t $(MUSL_BUILDER_TAG) $$tags
 
 python-builder:
 	docker buildx build --load \

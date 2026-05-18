@@ -89,9 +89,10 @@ make clean
 # Also delete artifacts/ (toolchain tarballs)
 make clean-all
 
-# After `docker login`, upload images (see Publishing below)
-make push
-make push-python
+# After `docker login`, push per-host arch then merge (see Publishing below)
+make push && make push-python
+# On another host (other DOCKER_HOST_PLATFORM): make all && make push && make push-python
+make manifest && make manifest-python
 ```
 
 ### Makefile targets (summary)
@@ -109,6 +110,10 @@ make push-python
 | `clean-all`      | Runs `clean`, then deletes `artifacts/`. Does **not** remove the builder image.                                                                                                                             |
 | `push`           | Pushes `gcc-builder:<release>-<host-arch>` for this host (e.g. `4-amd64`). Use `make manifest` after all arches are pushed.                                                                                 |
 | `push-python`    | Pushes `python-builder:<release>-<host-arch>`. Use `make manifest-python` to publish `:<release>`.                                                                                                          |
+| `push-musl`      | Pushes `gcc-builder-musl:<release>-<host-arch>`.                                                                                                                                                            |
+| `manifest`       | Creates multi-arch `gcc-builder:<release>` from discovered `:<release>-amd64`, `:<release>-arm64`, … tags.                                                                                                  |
+| `manifest-python`| Same for `python-builder:<release>`.                                                                                                                                                                        |
+| `manifest-musl`  | Same for `gcc-builder-musl:<release>`.                                                                                                                                                                      |
 
 
 ## Using gcc-builder from application repos
@@ -134,12 +139,17 @@ cd ~/work/scorbit/gcc-builder
 # Set DOCKER_RELEASE via .env, DOCKER_RELEASE file, or: make DOCKER_RELEASE=12 …
 make all              # toolchains + gcc-builder + python-builder for this host
 make python-builder   # Python 3 + 2.7 wheel image (independent of toolchains)
-# Optional: publish (set DOCKER_USER for hub-style names, e.g. dilshodm/gcc-builder:12)
+# Per host: push dilshodm/gcc-builder:12-amd64 (or -arm64), etc.
 make push
 make push-python
+
+# After every host arch is pushed, publish the consumer tag:
+make manifest
+make manifest-python
 ```
 
-Use the **same `DOCKER_RELEASE`** for both gcc-builder and python-builder when publishing.
+Use the **same `DOCKER_RELEASE`** for gcc-builder and python-builder. Consumers pull
+`dilshodm/gcc-builder:<release>` (no arch suffix) after `make manifest`.
 
 Use the **same host platform** you will use to run Docker in the SDK/scorbitd
 repos (`HOST_LINUX_PLATFORM` / `DOCKER_HOST_PLATFORM`; see [Host platform](#host-platform)).
@@ -298,21 +308,35 @@ make builder          # → gcc-builder:<release>-<host-arch> (e.g. 4-amd64)
 #   → dilshodm/gcc-builder:<release>-<host-arch>
 ```
 
-#### Publishing (`make push`)
+#### Publishing (per-arch build + `make manifest`)
 
-Run `**docker login**` (Docker Hub or your default registry), then `**make push**`. That
-pushes the `BUILDER_TAG` — the same name produced by `**make builder**`.
+1. On each host CPU (or with `DOCKER_HOST_PLATFORM`), build and push **per-arch tags**:
+   - `dilshodm/gcc-builder:4-amd64`, `dilshodm/gcc-builder:4-arm64`, etc.
+   - Same pattern for `python-builder` and `gcc-builder-musl`.
 
-**Host platform and push:** `docker push` does not choose CPU/OS; it uploads whatever
-manifest is already on the tag. If you built with `**DOCKER_HOST_PLATFORM=linux/amd64`**
-on macOS, the pushed image is a **linux/amd64** image (runnable on x86_64 hosts). If
-you built with the default on Apple Silicon, the pushed image is **linux/arm64**. Pullers
-must match the image architecture (or use emulation). Rebuild with the desired
-`DOCKER_HOST_PLATFORM` before pushing if you need a different host arch.
+```bash
+docker login
+# On amd64 host (or DOCKER_HOST_PLATFORM=linux/amd64):
+make all && make push && make push-python
 
-If `**DOCKER_USER`** is unset, `make push` still runs but prints a warning; Docker Hub
-typically expects repositories under your username (set `DOCKER_USER` in `.env` or on
-the command line when building **and** when the tags must match what you push).
+# On arm64 host:
+make all && make push && make push-python
+```
+
+2. Merge into the **release tag** consumers use (`:4` without arch suffix):
+
+```bash
+make manifest          # -> dilshodm/gcc-builder:4
+make manifest-python   # -> dilshodm/python-builder:4
+make manifest-musl     # -> dilshodm/gcc-builder-musl:4
+```
+
+`make manifest*` runs `docker buildx imagetools create` over tags discovered by
+[`scripts/discover-host-archs.sh`](scripts/discover-host-archs.sh) (local images and
+`artifacts/linux-*/` directories). Do **not** push `:4` directly from a single host —
+that would overwrite a previous arch.
+
+If `**DOCKER_USER`** is unset, `make push` prints a warning; set it in `.env` for Docker Hub.
 
 If `artifacts/<platform-slug>/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
 Changing the target sysroot Dockerfile and re-running only rebuilds the sysroot
@@ -320,7 +344,7 @@ and dependency layers — the toolchain layer stays cached.
 
 The toolchain tarball contains **host-native** GCC/binutils (e.g. linux/arm64 on
 Apple Silicon). If you see `...-gcc: not found` inside the builder, delete the
-matching artifact under `artifacts/` and run `make toolchain-<arch>` again on
+matching artifact under `artifacts/<platform-slug>/` and run `make toolchain-<arch>` again on
 this host so the compiler matches your machine.
 
 ## Configuration

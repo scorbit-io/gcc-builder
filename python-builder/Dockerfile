@@ -8,8 +8,8 @@
 # Usage (local, single platform):
 #   make python-builder
 #
-# Usage (multi-arch publish):
-#   make publish-python
+# After pushing per-arch tags from each host, merge on Hub:
+#   make manifest-python
 # ==========================================
 
 ARG HOST_UBUNTU=24.04
