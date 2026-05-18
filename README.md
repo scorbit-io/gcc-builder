@@ -19,6 +19,7 @@ Layer 1a  toolchain-sysroots/Dockerfile   Minimal sysroot for GCC build (old gli
 Layer 1b  sysroots/Dockerfile.*           Target sysroot for the builder image
 Layer 2   toolchain/Dockerfile            Builds GCC cross-compiler → tar.gz archive
 Layer 3   builder/Dockerfile              Unified image: all toolchains + sysroots + deps
+python-builder/Dockerfile                 Slim image: Python 3 + 2.7, pip, wheel tooling (independent of layers 1–3)
 ```
 
 Two separate sysroot images are built per architecture:
@@ -61,9 +62,9 @@ automatically; `.env` is listed in `.gitignore`.
 - A one-line `**DOCKER_RELEASE**` file in the repo root, or `**DOCKER_RELEASE=12**`
 on the `make` command line.
 
-That value becomes the image tag (e.g. `gcc-builder:12`, or
-`dilshodm/gcc-builder:12` if `DOCKER_USER` is set). The builder image
-gets **one** tag (no extra `:latest`).
+That value becomes the image tag (e.g. `gcc-builder:12` and `python-builder:12`, or
+`dilshodm/gcc-builder:12` / `dilshodm/python-builder:12` if `DOCKER_USER` is set).
+Each image gets **one** tag (no extra `:latest`).
 
 ```bash
 # Show targets and configuration hints (default when you run `make` with no arguments)
@@ -79,14 +80,18 @@ make toolchains
 # Build the unified builder image (auto-builds toolchains if artifacts missing)
 make builder
 
+# Build the Python wheel image (independent of toolchains)
+make python-builder
+
 # Remove intermediate sysroot Docker images only (keeps artifacts/ and builder image)
 make clean
 
 # Also delete artifacts/ (toolchain tarballs)
 make clean-all
 
-# After `docker login`, upload the builder tag (see Publishing below)
+# After `docker login`, upload images (see Publishing below)
 make push
+make push-python
 ```
 
 ### Makefile targets (summary)
@@ -98,10 +103,12 @@ make push
 | `help`       | Same as running `make` with no arguments.                                                                                                                                                                   |
 | `all`        | `toolchains` then `builder`.                                                                                                                                                                                |
 | `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives.                                                                                                                                                   |
-| `builder`    | Build the unified builder image with all 3 architectures. Auto-builds missing toolchain artifacts.                                                                                                          |
-| `clean`      | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or the builder image. |
-| `clean-all`  | Runs `clean`, then deletes `artifacts/`. Does **not** remove the builder image.                                                                                                                             |
-| `push`       | Runs `docker push` for the builder tag. Expects the image already built and tagged; requires `docker login`. Set `**DOCKER_USER**` for normal Docker Hub names (`user/gcc-builder:…`).                      |
+| `builder`        | Build the unified builder image with all 3 architectures. Auto-builds missing toolchain artifacts.                                                                                                          |
+| `python-builder` | Build the slim Python wheel image (`python-builder:<release>`). Independent of toolchains.                                                                                                                    |
+| `clean`          | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or the builder image. |
+| `clean-all`      | Runs `clean`, then deletes `artifacts/`. Does **not** remove the builder image.                                                                                                                             |
+| `push`           | Runs `docker push` for the builder tag. Expects the image already built and tagged; requires `docker login`. Set `**DOCKER_USER**` for normal Docker Hub names (`user/gcc-builder:…`).                      |
+| `push-python`    | Runs `docker push` for the python-builder tag (same `DOCKER_RELEASE` / `DOCKER_USER` as gcc-builder).                                                                                                       |
 
 
 ## Using gcc-builder from application repos
@@ -111,24 +118,28 @@ CMake projects. Two Scorbit repositories consume it this way:
 
 | Repository   | Typical path                         | Role |
 | ------------ | ------------------------------------ | ---- |
-| Scorbit SDK  | `~/work/scorbit/scorbit_sdk`         | Linux SDK (`.deb` / `.tar.gz`), encrypt tool, Python wheels |
+| Scorbit SDK  | `~/work/scorbit/scorbit_sdk`         | Linux SDK (`.deb` / `.tar.gz`) via gcc-builder; Python wheels via python-builder |
 | scorbitd     | `~/work/scorbit/scorbitd`            | Daemon / service builds for Linux targets |
 
 Both read the image tag from a one-line **`DOCKER_RELEASE`** file at the repo root
 (same idea as this project). **`DOCKER_RELEASE` must match** the tag you built or
-pulled here (for example `12` → image `…/gcc-builder:12`).
+pulled here (for example `12` → `…/gcc-builder:12` and `…/python-builder:12`).
 
-### 1. Produce the image (`gcc-builder`)
+### 1. Produce the images
 
 From this repository:
 
 ```bash
 cd ~/work/scorbit/gcc-builder
 # Set DOCKER_RELEASE via .env, DOCKER_RELEASE file, or: make DOCKER_RELEASE=12 …
-make all          # toolchains + unified builder, or: make builder
+make all              # toolchains + unified builder, or: make builder
+make python-builder   # Python 3 + 2.7 wheel image (independent of toolchains)
 # Optional: publish (set DOCKER_USER for hub-style names, e.g. dilshodm/gcc-builder:12)
 make push
+make push-python
 ```
+
+Use the **same `DOCKER_RELEASE`** for both gcc-builder and python-builder when publishing.
 
 Use the **same host platform** you will use to run Docker in the SDK/scorbitd
 repos (`HOST_LINUX_PLATFORM` / `DOCKER_HOST_PLATFORM`; see [Host platform](#host-platform)).
@@ -151,7 +162,7 @@ will fail in confusing ways.
 ```bash
 cd ~/work/scorbit/scorbit_sdk
 make armhf        # or: make arm64 / make amd64
-# Optional: make python   # wheel build; same gcc-builder image via docker_build_wheel
+# Optional: make python / make python27   # wheels via dilshodm/python-builder:${REL}
 ```
 
 **scorbitd** — same `scripts/linux-build.sh` / `_common.sh` pattern:

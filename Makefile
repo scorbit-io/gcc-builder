@@ -41,7 +41,8 @@ $(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE
 endif
 endif
 
-BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder:$(DOCKER_RELEASE)
+BUILDER_TAG        := $(DOCKER_REPO_PREFIX)gcc-builder:$(DOCKER_RELEASE)
+PYTHON_BUILDER_TAG := $(DOCKER_REPO_PREFIX)python-builder:$(DOCKER_RELEASE)
 
 BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 16.1.0
@@ -77,7 +78,7 @@ platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUS
 
 MUSL_BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
 
-.PHONY: help all toolchains builder builder-musl musl-toolchains clean clean-all push push-musl
+.PHONY: help all toolchains builder builder-musl python-builder musl-toolchains clean clean-all push push-musl push-python
 
 .DEFAULT_GOAL := help
 
@@ -89,11 +90,13 @@ help:
 	@echo '  all             All toolchain archives, then unified builder image'
 	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builder         Unified builder image with all 3 architectures'
+	@echo '  python-builder  Slim image for Python 3 / 2.7 wheel packaging (pip, setuptools, wheel)'
 	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64, static defaults)'
 	@echo '  musl-toolchains musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
 	@echo '  push            docker push the builder tag (requires docker login; set DOCKER_USER)'
+	@echo '  push-python     docker push the python-builder tag'
 	@echo '  push-musl       docker push gcc-builder-musl tag'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
@@ -144,6 +147,21 @@ ifeq ($(strip $(DOCKER_USER)),)
 	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
 endif
 	docker push $(BUILDER_TAG)
+
+push-python:
+ifeq ($(strip $(DOCKER_USER)),)
+	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
+endif
+	docker push $(PYTHON_BUILDER_TAG)
+
+python-builder:
+	docker buildx build --load \
+		--platform=$(HOST_LINUX_PLATFORM) \
+		-f python-builder/Dockerfile \
+		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
+		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
+		-t $(PYTHON_BUILDER_TAG) \
+		.
 
 # -------------------------------------------------------
 # Layer 1a: Toolchain sysroot images (old glibc for GCC build)
