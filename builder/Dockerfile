@@ -26,6 +26,7 @@
 ARG IMAGE_PREFIX=gcc
 ARG HOST_PLATFORM=linux/amd64
 ARG HOST_UBUNTU=24.04
+ARG ARTIFACTS_SUBDIR=linux-amd64
 
 FROM --platform=linux/arm/v7 ${IMAGE_PREFIX}-sysroot-armhf AS sysroot_armhf
 FROM --platform=linux/amd64  ${IMAGE_PREFIX}-sysroot-amd64 AS sysroot_amd64
@@ -75,9 +76,10 @@ RUN wget https://github.com/ninja-build/ninja/archive/refs/tags/v$NINJA_VER.tar.
 # ------------------------------------------
 # Install pre-built toolchains for all architectures
 # ------------------------------------------
-ADD artifacts/toolchain-armhf.tar.gz /
-ADD artifacts/toolchain-amd64.tar.gz /
-ADD artifacts/toolchain-arm64.tar.gz /
+ARG ARTIFACTS_SUBDIR
+ADD artifacts/${ARTIFACTS_SUBDIR}/toolchain-armhf.tar.gz /
+ADD artifacts/${ARTIFACTS_SUBDIR}/toolchain-amd64.tar.gz /
+ADD artifacts/${ARTIFACTS_SUBDIR}/toolchain-arm64.tar.gz /
 
 ENV PATH=/opt/armhf/toolchain/bin:/opt/amd64/toolchain/bin:/opt/arm64/toolchain/bin:$PATH
 

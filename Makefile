@@ -48,22 +48,41 @@ BINUTILS_VERSION ?= 2.45
 GCC_VERSION      ?= 16.1.0
 HOST_UBUNTU      ?=22.04
 
-ifndef HOST_LINUX_PLATFORM
+comma := ,
+empty :=
+space := $(empty) $(empty)
+
+# Single host platform for local builds (first linux/* token if comma-separated).
 ifneq ($(strip $(DOCKER_HOST_PLATFORM)),)
-HOST_LINUX_PLATFORM := $(strip $(DOCKER_HOST_PLATFORM))
+_host_plat_src := $(strip $(DOCKER_HOST_PLATFORM))
+else ifneq ($(strip $(HOST_LINUX_PLATFORM)),)
+_host_plat_src := $(strip $(HOST_LINUX_PLATFORM))
 else
 UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M),aarch64)
-HOST_LINUX_PLATFORM := linux/arm64
+_host_plat_src := linux/arm64
 else ifeq ($(UNAME_M),arm64)
-HOST_LINUX_PLATFORM := linux/arm64
+_host_plat_src := linux/arm64
 else ifeq ($(UNAME_M),x86_64)
-HOST_LINUX_PLATFORM := linux/amd64
+_host_plat_src := linux/amd64
 else
-HOST_LINUX_PLATFORM := linux/$(UNAME_M)
+_host_plat_src := linux/$(UNAME_M)
 endif
 endif
+platform_slug = $(subst /,-,$(1))
+host_arch     = $(lastword $(subst /, ,$(1)))
+first_linux_platform = $(firstword $(subst $(comma),$(space),$(strip $(1))))
+HOST_LINUX_PLATFORM := $(call first_linux_platform,$(_host_plat_src))
+ifeq ($(HOST_LINUX_PLATFORM),)
+$(error Could not resolve HOST_LINUX_PLATFORM from "$(_host_plat_src)")
 endif
+ifneq ($(findstring linux/,$(HOST_LINUX_PLATFORM)),linux/)
+$(error HOST_LINUX_PLATFORM must look like linux/amd64 or linux/arm64, got "$(HOST_LINUX_PLATFORM)")
+endif
+
+HOST_PLATFORM_SLUG     := $(call platform_slug,$(HOST_LINUX_PLATFORM))
+HOST_ARCH              := $(call host_arch,$(HOST_LINUX_PLATFORM))
+ARTIFACTS_PLATFORM_DIR := $(ARTIFACTS_DIR)/$(HOST_PLATFORM_SLUG)
 
 # Helper: extract a field from platforms.conf
 platform = $(shell scripts/parse-platform.sh $(1) $(2))
@@ -88,7 +107,7 @@ help:
 	@echo 'GCC cross-toolchain — common targets'
 	@echo ''
 	@echo '  all             All toolchain archives, then unified builder image'
-	@echo '  toolchains      artifacts/toolchain-<arch>.tar.gz for each arch'
+	@echo '  toolchains      artifacts/<platform-slug>/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builder         Unified builder image with all 3 architectures'
 	@echo '  python-builder  Slim image for Python 3 / 2.7 wheel packaging (pip, setuptools, wheel)'
 	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64, static defaults)'
@@ -116,7 +135,7 @@ musl-toolchains: $(addprefix musl-toolchain-,$(MUSL_ARCHES))
 
 builder-musl: $(addprefix musl-sysroot-,$(MUSL_ARCHES))
 	@set -e; for a in $(MUSL_ARCHES); do \
-		art="$(ARTIFACTS_DIR)/musl-toolchain-$$a.tar.gz"; \
+		art="$(ARTIFACTS_PLATFORM_DIR)/musl-toolchain-$$a.tar.gz"; \
 		if [ -f "$$art" ] && ! gzip -t "$$art" 2>/dev/null; then \
 			echo "Corrupt musl toolchain archive for $$a; removing..."; \
 			rm -f "$$art"; \
@@ -133,6 +152,7 @@ builder-musl: $(addprefix musl-sysroot-,$(MUSL_ARCHES))
 		--build-arg IMAGE_PREFIX=$(IMAGE_PREFIX) \
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
+		--build-arg ARTIFACTS_SUBDIR=$(HOST_PLATFORM_SLUG) \
 		-t $(MUSL_BUILDER_TAG) \
 		.
 
@@ -188,7 +208,7 @@ sysroot-%:
 # Layer 2: Toolchain builds → tar.gz archives
 # -------------------------------------------------------
 toolchain-%: toolchain-sysroot-%
-	mkdir -p $(ARTIFACTS_DIR)
+	mkdir -p $(ARTIFACTS_PLATFORM_DIR)
 	bash -c 'set -euo pipefail; \
 		docker buildx build \
 			--platform=$(HOST_LINUX_PLATFORM) \
@@ -203,15 +223,15 @@ toolchain-%: toolchain-sysroot-%
 			--build-arg GCC_VERSION=$(GCC_VERSION) \
 			--target export \
 			--output type=tar,dest=- . \
-		| gzip > "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz.tmp" && \
-		mv "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_DIR)/toolchain-$*.tar.gz"'
+		| gzip > "$(ARTIFACTS_PLATFORM_DIR)/toolchain-$*.tar.gz.tmp" && \
+		mv "$(ARTIFACTS_PLATFORM_DIR)/toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_PLATFORM_DIR)/toolchain-$*.tar.gz"'
 
 # -------------------------------------------------------
 # Layer 3: Unified builder image (all architectures)
 # -------------------------------------------------------
 builder: $(addprefix sysroot-,$(ARCHES))
 	@set -e; for a in $(ARCHES); do \
-		art="$(ARTIFACTS_DIR)/toolchain-$$a.tar.gz"; \
+		art="$(ARTIFACTS_PLATFORM_DIR)/toolchain-$$a.tar.gz"; \
 		if [ -f "$$art" ] && ! gzip -t "$$art" 2>/dev/null; then \
 			echo "Corrupt toolchain archive for $$a (gzip -t failed); removing and rebuilding..."; \
 			rm -f "$$art"; \
@@ -228,6 +248,7 @@ builder: $(addprefix sysroot-,$(ARCHES))
 		--build-arg IMAGE_PREFIX=$(IMAGE_PREFIX) \
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
+		--build-arg ARTIFACTS_SUBDIR=$(HOST_PLATFORM_SLUG) \
 		-t $(BUILDER_TAG) \
 		.
 
@@ -279,7 +300,7 @@ musl-sysroot-arm64:
 		sysroots/
 
 musl-toolchain-%: musl-toolchain-sysroot-%
-	mkdir -p $(ARTIFACTS_DIR)
+	mkdir -p $(ARTIFACTS_PLATFORM_DIR)
 	bash -c 'set -euo pipefail; \
 		docker buildx build \
 			--platform=$(HOST_LINUX_PLATFORM) \
@@ -295,8 +316,8 @@ musl-toolchain-%: musl-toolchain-sysroot-%
 			--build-arg PLATFORMS_FILE=$(PLATFORMS_MUSL) \
 			--target export \
 			--output type=tar,dest=- . \
-		| gzip > "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz.tmp" && \
-		mv "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_DIR)/musl-toolchain-$*.tar.gz"'
+		| gzip > "$(ARTIFACTS_PLATFORM_DIR)/musl-toolchain-$*.tar.gz.tmp" && \
+		mv "$(ARTIFACTS_PLATFORM_DIR)/musl-toolchain-$*.tar.gz.tmp" "$(ARTIFACTS_PLATFORM_DIR)/musl-toolchain-$*.tar.gz"'
 
 clean:
 	@for a in $(ARCHES); do \

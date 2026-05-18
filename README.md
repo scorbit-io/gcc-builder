@@ -102,7 +102,7 @@ make push-python
 | *(default)*  | Same as `help` — lists targets and options (no `DOCKER_RELEASE` needed).                                                                                                                                    |
 | `help`       | Same as running `make` with no arguments.                                                                                                                                                                   |
 | `all`        | `toolchains` then `builder`.                                                                                                                                                                                |
-| `toolchains` | Produce all `artifacts/toolchain-<arch>.tar.gz` archives.                                                                                                                                                   |
+| `toolchains` | Produce all `artifacts/<platform-slug>/toolchain-<arch>.tar.gz` archives (e.g. `artifacts/linux-amd64/`).                                                                                                      |
 | `builder`        | Build the unified builder image with all 3 architectures. Auto-builds missing toolchain artifacts.                                                                                                          |
 | `python-builder` | Build the slim Python wheel image (`python-builder:<release>`). Independent of toolchains.                                                                                                                    |
 | `clean`          | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or the builder image. |
@@ -278,7 +278,7 @@ make sysroot-armhf
 ### 2. Toolchain archives
 
 ```bash
-make toolchain-armhf  # → artifacts/toolchain-armhf.tar.gz
+make toolchain-armhf  # → artifacts/linux-amd64/toolchain-armhf.tar.gz (slug from DOCKER_HOST_PLATFORM)
 ```
 
 Toolchain sysroot docker images can be removed after this step.
@@ -314,7 +314,7 @@ If `**DOCKER_USER`** is unset, `make push` still runs but prints a warning; Dock
 typically expects repositories under your username (set `DOCKER_USER` in `.env` or on
 the command line when building **and** when the tags must match what you push).
 
-If `artifacts/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
+If `artifacts/<platform-slug>/toolchain-<arch>.tar.gz` already exists, the toolchain is not rebuilt.
 Changing the target sysroot Dockerfile and re-running only rebuilds the sysroot
 and dependency layers — the toolchain layer stays cached.
 
