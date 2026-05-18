@@ -122,8 +122,9 @@ help:
 	@echo '  push            docker push gcc-builder:$(DOCKER_RELEASE)-<host-arch> for this host'
 	@echo '  push-python     docker push python-builder:$(DOCKER_RELEASE)-<host-arch>'
 	@echo '  push-musl       docker push gcc-builder-musl:$(DOCKER_RELEASE)-<host-arch>'
-	@echo '  manifest        Merge pushed per-arch gcc-builder tags into :$(DOCKER_RELEASE) (imagetools)'
-	@echo '  manifest-python / manifest-musl   Same for python-builder / gcc-builder-musl'
+	@echo '  manifest        Merge pushed per-arch gcc-builder tags into :$(DOCKER_RELEASE), then docker pull'
+	@echo '  manifest-python Merge per-arch python-builder tags into :$(DOCKER_RELEASE), then docker pull'
+	@echo '  manifest-musl   Merge per-arch gcc-builder-musl tags into :$(DOCKER_RELEASE), then docker pull'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
@@ -189,7 +190,8 @@ manifest:
 	tags=""; \
 	for a in $$archs; do tags="$$tags $(BUILDER_TAG)-$$a"; done; \
 	echo "docker buildx imagetools create -t $(BUILDER_TAG)$$tags"; \
-	docker buildx imagetools create -t $(BUILDER_TAG) $$tags
+	docker buildx imagetools create -t $(BUILDER_TAG) $$tags; \
+	docker pull $(BUILDER_TAG)
 
 manifest-python:
 	@set -e; \
@@ -197,7 +199,8 @@ manifest-python:
 	tags=""; \
 	for a in $$archs; do tags="$$tags $(PYTHON_BUILDER_TAG)-$$a"; done; \
 	echo "docker buildx imagetools create -t $(PYTHON_BUILDER_TAG)$$tags"; \
-	docker buildx imagetools create -t $(PYTHON_BUILDER_TAG) $$tags
+	docker buildx imagetools create -t $(PYTHON_BUILDER_TAG) $$tags; \
+	docker pull $(PYTHON_BUILDER_TAG)
 
 manifest-musl:
 	@set -e; \
@@ -205,7 +208,8 @@ manifest-musl:
 	tags=""; \
 	for a in $$archs; do tags="$$tags $(MUSL_BUILDER_TAG)-$$a"; done; \
 	echo "docker buildx imagetools create -t $(MUSL_BUILDER_TAG)$$tags"; \
-	docker buildx imagetools create -t $(MUSL_BUILDER_TAG) $$tags
+	docker buildx imagetools create -t $(MUSL_BUILDER_TAG) $$tags; \
+	docker pull $(MUSL_BUILDER_TAG)
 
 python-builder:
 	docker buildx build --load \
