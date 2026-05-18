@@ -1,4 +1,4 @@
-# GCC 15 Cross-Toolchain Build System
+# GCC 16 Cross-Toolchain Build System
 #
 # Builds cross-compilers for armhf/amd64/arm64 and a single unified builder image.
 #
@@ -44,7 +44,7 @@ endif
 BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder:$(DOCKER_RELEASE)
 
 BINUTILS_VERSION ?= 2.45
-GCC_VERSION      ?= 15.2.0
+GCC_VERSION      ?= 16.1.0
 HOST_UBUNTU      ?=22.04
 
 ifndef HOST_LINUX_PLATFORM

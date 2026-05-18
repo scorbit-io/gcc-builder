@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # ==========================================
-# Parameterized GCC 15 Cross-Toolchain Builder
+# Parameterized GCC 16 Cross-Toolchain Builder
 # Builds one cross-compiler per invocation.
 #
 # Sysroot stage uses the target CPU platform; the compile stage uses HOST_PLATFORM
@@ -49,7 +49,7 @@ RUN mkdir -p $BUILD_DIR
 WORKDIR $BUILD_DIR
 
 ARG BINUTILS_VERSION=2.45
-ARG GCC_VERSION=15.2.0
+ARG GCC_VERSION=16.1.0
 
 RUN wget -q https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.xz \
     && wget -q https://www.mirrorservice.org/sites/ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \

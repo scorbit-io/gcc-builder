@@ -1,6 +1,6 @@
-# GCC 15 Cross-Toolchain
+# GCC 16 Cross-Toolchain
 
-Multi-architecture GCC 15 cross-compilation toolchain targeting:
+Multi-architecture GCC 16 cross-compilation toolchain targeting:
 
 
 | Arch  | Triple              | Toolchain Sysroot    | Target Sysroot |
