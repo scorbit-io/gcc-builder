@@ -106,7 +106,7 @@ MUSL_BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
 help:
 	@echo 'GCC cross-toolchain — common targets'
 	@echo ''
-	@echo '  all             All toolchain archives, then unified builder image'
+	@echo '  all             Toolchains, gcc-builder, and python-builder for this host platform'
 	@echo '  toolchains      artifacts/<platform-slug>/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builder         Unified builder image with all 3 architectures'
 	@echo '  python-builder  Slim image for Python 3 / 2.7 wheel packaging (pip, setuptools, wheel)'
@@ -129,7 +129,7 @@ help:
 	@echo ''
 	@echo 'See README.md for full documentation.'
 
-all: toolchains builder
+all: toolchains builder python-builder
 
 musl-toolchains: $(addprefix musl-toolchain-,$(MUSL_ARCHES))
 

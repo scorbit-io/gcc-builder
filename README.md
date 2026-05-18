@@ -101,7 +101,7 @@ make push-python
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | *(default)*  | Same as `help` — lists targets and options (no `DOCKER_RELEASE` needed).                                                                                                                                    |
 | `help`       | Same as running `make` with no arguments.                                                                                                                                                                   |
-| `all`        | `toolchains` then `builder`.                                                                                                                                                                                |
+| `all`        | `toolchains`, then `builder`, then `python-builder` (for this host platform).                                                                                                                               |
 | `toolchains` | Produce all `artifacts/<platform-slug>/toolchain-<arch>.tar.gz` archives (e.g. `artifacts/linux-amd64/`).                                                                                                      |
 | `builder`        | Build the unified builder image with all 3 architectures. Auto-builds missing toolchain artifacts.                                                                                                          |
 | `python-builder` | Build the slim Python wheel image (`python-builder:<release>`). Independent of toolchains.                                                                                                                    |
@@ -132,7 +132,7 @@ From this repository:
 ```bash
 cd ~/work/scorbit/gcc-builder
 # Set DOCKER_RELEASE via .env, DOCKER_RELEASE file, or: make DOCKER_RELEASE=12 …
-make all              # toolchains + unified builder, or: make builder
+make all              # toolchains + gcc-builder + python-builder for this host
 make python-builder   # Python 3 + 2.7 wheel image (independent of toolchains)
 # Optional: publish (set DOCKER_USER for hub-style names, e.g. dilshodm/gcc-builder:12)
 make push
