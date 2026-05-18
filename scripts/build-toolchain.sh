@@ -57,7 +57,7 @@ cd "binutils-${ARCH_NAME}"
     --disable-multilib \
     --disable-werror
 make -j$(nproc)
-make install
+make install-strip
 cd "$BUILD_DIR"
 rm -rf "binutils-${ARCH_NAME}"
 
@@ -76,19 +76,16 @@ case "$ARCH_NAME" in
         EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=neon-vfpv4 --with-float=hard"
         ;;
     musl-armhf)
-        # Musl + libstdc++: PCH / embedded libbacktrace can fail cross-builds; skip strip on target.
+        # Musl + libstdc++: PCH / embedded libbacktrace can fail cross-builds.
         EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=vfpv3 --with-float=hard"
         EXTRA_GCC_OPTS+=" --disable-libstdcxx-pch --disable-libstdcxx-backtrace"
-        GCC_INSTALL_TARGET="install"
         ;;
     musl-armel)
         EXTRA_GCC_OPTS="--with-arch=armv5te --with-float=soft"
         EXTRA_GCC_OPTS+=" --disable-libstdcxx-pch --disable-libstdcxx-backtrace"
-        GCC_INSTALL_TARGET="install"
         ;;
     musl-arm64)
         EXTRA_GCC_OPTS="--disable-libstdcxx-pch --disable-libstdcxx-backtrace"
-        GCC_INSTALL_TARGET="install"
         ;;
 esac
 
