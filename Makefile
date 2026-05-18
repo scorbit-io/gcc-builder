@@ -32,7 +32,7 @@ DOCKER_RELEASE      ?= $(shell cat $(DOCKER_RELEASE_FILE) 2>/dev/null | tr -d ' 
 ifeq ($(DOCKER_RELEASE),)
 # Musl tarball/sysroot targets do not need a release tag (builder-musl / push-musl still do).
 DOCKER_RELEASE_EXEMPT := help clean clean-all \
-	musl-toolchains \
+	toolchains-musl \
 	musl-toolchain-armhf musl-toolchain-armel musl-toolchain-arm64 \
 	musl-toolchain-sysroot-armhf musl-toolchain-sysroot-armel musl-toolchain-sysroot-arm64 \
 	musl-sysroot-armhf musl-sysroot-armel musl-sysroot-arm64
@@ -101,7 +101,7 @@ platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUS
 MUSL_BUILDER_TAG      := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
 MUSL_BUILDER_TAG_ARCH := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)-$(HOST_ARCH)
 
-.PHONY: help all toolchains builder builder-musl python-builder musl-toolchains clean clean-all \
+.PHONY: help all toolchains builder builder-musl python-builder toolchains-musl clean clean-all \
 	push push-musl push-python manifest manifest-python manifest-musl
 
 .DEFAULT_GOAL := help
@@ -116,7 +116,7 @@ help:
 	@echo '  builder         Unified builder image with all 3 architectures'
 	@echo '  python-builder  Slim image for Python 3 / 2.7 wheel packaging (pip, setuptools, wheel)'
 	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64, static defaults)'
-	@echo '  musl-toolchains musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
+	@echo '  toolchains-musl musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
 	@echo '  push            docker push gcc-builder:$(DOCKER_RELEASE)-<host-arch> for this host'
@@ -131,7 +131,7 @@ help:
 	@echo '  sysroot-<arch>             Target sysroot image for the builder'
 	@echo '  toolchain-<arch>           Cross toolchain tarball'
 	@echo ''
-	@echo 'Configuration: set DOCKER_RELEASE (file $(DOCKER_RELEASE_FILE) or .env). Not required for: help, clean*, musl-toolchains, musl-toolchain-*, musl-sysroot-*, musl-toolchain-sysroot-*.'
+	@echo 'Configuration: set DOCKER_RELEASE (file $(DOCKER_RELEASE_FILE) or .env). Not required for: help, clean*, toolchains-musl, musl-toolchain-*, musl-sysroot-*, musl-toolchain-sysroot-*.'
 	@echo '  .env (see .env.example), file $(DOCKER_RELEASE_FILE), or DOCKER_RELEASE=… on the command line'
 	@echo '  Optional: DOCKER_USER, DOCKER_HOST_PLATFORM, BINUTILS_VERSION, GCC_VERSION, HOST_LINUX_PLATFORM, HOST_UBUNTU'
 	@echo ''
@@ -139,7 +139,7 @@ help:
 
 all: toolchains builder python-builder
 
-musl-toolchains: $(addprefix musl-toolchain-,$(MUSL_ARCHES))
+toolchains-musl: $(addprefix musl-toolchain-,$(MUSL_ARCHES))
 
 builder-musl: $(addprefix musl-sysroot-,$(MUSL_ARCHES))
 	@set -e; for a in $(MUSL_ARCHES); do \
