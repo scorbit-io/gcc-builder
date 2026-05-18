@@ -70,7 +70,7 @@ _host_plat_src := linux/$(UNAME_M)
 endif
 endif
 platform_slug = $(subst /,-,$(1))
-host_arch     = $(lastword $(subst /, ,$(1)))
+host_arch     = $(lastword $(subst /,$(space),$(1)))
 first_linux_platform = $(firstword $(subst $(comma),$(space),$(strip $(1))))
 HOST_LINUX_PLATFORM := $(call first_linux_platform,$(_host_plat_src))
 ifeq ($(HOST_LINUX_PLATFORM),)
@@ -84,6 +84,9 @@ HOST_PLATFORM_SLUG     := $(call platform_slug,$(HOST_LINUX_PLATFORM))
 HOST_ARCH              := $(call host_arch,$(HOST_LINUX_PLATFORM))
 ARTIFACTS_PLATFORM_DIR := $(ARTIFACTS_DIR)/$(HOST_PLATFORM_SLUG)
 
+BUILDER_TAG_ARCH        := $(DOCKER_REPO_PREFIX)gcc-builder:$(DOCKER_RELEASE)-$(HOST_ARCH)
+PYTHON_BUILDER_TAG_ARCH := $(DOCKER_REPO_PREFIX)python-builder:$(DOCKER_RELEASE)-$(HOST_ARCH)
+
 # Helper: extract a field from platforms.conf
 platform = $(shell scripts/parse-platform.sh $(1) $(2))
 
@@ -95,7 +98,8 @@ PLATFORMS_MUSL := platforms-musl.conf
 # musl-$(stem) e.g. musl-armhf — arch keys in platforms-musl.conf
 platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUSL))
 
-MUSL_BUILDER_TAG := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
+MUSL_BUILDER_TAG      := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)
+MUSL_BUILDER_TAG_ARCH := $(DOCKER_REPO_PREFIX)gcc-builder-musl:$(DOCKER_RELEASE)-$(HOST_ARCH)
 
 .PHONY: help all toolchains builder builder-musl python-builder musl-toolchains clean clean-all push push-musl push-python
 
@@ -114,9 +118,9 @@ help:
 	@echo '  musl-toolchains musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
-	@echo '  push            docker push the builder tag (requires docker login; set DOCKER_USER)'
-	@echo '  push-python     docker push the python-builder tag'
-	@echo '  push-musl       docker push gcc-builder-musl tag'
+	@echo '  push            docker push gcc-builder:$(DOCKER_RELEASE)-<host-arch> for this host'
+	@echo '  push-python     docker push python-builder:$(DOCKER_RELEASE)-<host-arch>'
+	@echo '  push-musl       docker push gcc-builder-musl:$(DOCKER_RELEASE)-<host-arch>'
 	@echo ''
 	@echo 'Per-arch pattern targets (arch: $(ARCHES)):'
 	@echo '  toolchain-sysroot-<arch>   Old-glibc sysroot image for GCC build'
@@ -153,34 +157,35 @@ builder-musl: $(addprefix musl-sysroot-,$(MUSL_ARCHES))
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
 		--build-arg ARTIFACTS_SUBDIR=$(HOST_PLATFORM_SLUG) \
-		-t $(MUSL_BUILDER_TAG) \
+		-t $(MUSL_BUILDER_TAG_ARCH) \
 		.
 
 push-musl:
-	docker push $(MUSL_BUILDER_TAG)
+ifeq ($(strip $(DOCKER_USER)),)
+	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
+endif
+	docker push $(MUSL_BUILDER_TAG_ARCH)
 
 toolchains: $(addprefix toolchain-,$(ARCHES))
 
-# Push the unified builder image to the default registry.
 push:
 ifeq ($(strip $(DOCKER_USER)),)
 	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
 endif
-	docker push $(BUILDER_TAG)
+	docker push $(BUILDER_TAG_ARCH)
 
 push-python:
 ifeq ($(strip $(DOCKER_USER)),)
 	@echo 'Warning: DOCKER_USER is unset; pushing unprefixed name (Docker Hub usually needs user/repo).' >&2
 endif
-	docker push $(PYTHON_BUILDER_TAG)
+	docker push $(PYTHON_BUILDER_TAG_ARCH)
 
 python-builder:
 	docker buildx build --load \
 		--platform=$(HOST_LINUX_PLATFORM) \
 		-f python-builder/Dockerfile \
-		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
-		-t $(PYTHON_BUILDER_TAG) \
+		-t $(PYTHON_BUILDER_TAG_ARCH) \
 		.
 
 # -------------------------------------------------------
@@ -249,7 +254,7 @@ builder: $(addprefix sysroot-,$(ARCHES))
 		--build-arg HOST_PLATFORM=$(HOST_LINUX_PLATFORM) \
 		--build-arg HOST_UBUNTU=$(HOST_UBUNTU) \
 		--build-arg ARTIFACTS_SUBDIR=$(HOST_PLATFORM_SLUG) \
-		-t $(BUILDER_TAG) \
+		-t $(BUILDER_TAG_ARCH) \
 		.
 
 # -------------------------------------------------------

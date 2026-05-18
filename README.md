@@ -107,8 +107,8 @@ make push-python
 | `python-builder` | Build the slim Python wheel image (`python-builder:<release>`). Independent of toolchains.                                                                                                                    |
 | `clean`          | Removes intermediate Docker images per arch only (`gcc-toolchain-sysroot-<arch>` and `gcc-sysroot-<arch>` when `IMAGE_PREFIX` is the default `gcc`). Does **not** delete `artifacts/` or the builder image. |
 | `clean-all`      | Runs `clean`, then deletes `artifacts/`. Does **not** remove the builder image.                                                                                                                             |
-| `push`           | Runs `docker push` for the builder tag. Expects the image already built and tagged; requires `docker login`. Set `**DOCKER_USER**` for normal Docker Hub names (`user/gcc-builder:…`).                      |
-| `push-python`    | Runs `docker push` for the python-builder tag (same `DOCKER_RELEASE` / `DOCKER_USER` as gcc-builder).                                                                                                       |
+| `push`           | Pushes `gcc-builder:<release>-<host-arch>` for this host (e.g. `4-amd64`). Use `make manifest` after all arches are pushed.                                                                                 |
+| `push-python`    | Pushes `python-builder:<release>-<host-arch>`. Use `make manifest-python` to publish `:<release>`.                                                                                                          |
 
 
 ## Using gcc-builder from application repos
@@ -293,9 +293,9 @@ the image name with `user/` (e.g. `dilshodm/gcc-builder:12`). Without it,
 the tag is unprefixed (`gcc-builder:…`).
 
 ```bash
-make builder          # → gcc-builder:<release>
+make builder          # → gcc-builder:<release>-<host-arch> (e.g. 4-amd64)
 # With registry user: make DOCKER_USER=dilshodm builder
-#   → dilshodm/gcc-builder:<release>
+#   → dilshodm/gcc-builder:<release>-<host-arch>
 ```
 
 #### Publishing (`make push`)
