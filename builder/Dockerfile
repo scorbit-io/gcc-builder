@@ -149,7 +149,7 @@ RUN set -e; for arch_tc in \
 # ------------------------------------------
 
 # Boost: bootstrap once, build for all arches
-ARG BOOST=boost-1.90.0
+ARG BOOST=boost-1.91.0-1
 RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz && \
     tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz && \
     (cd "$BOOST" && ./bootstrap.sh) && \
@@ -178,8 +178,8 @@ RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_
     rm -rf $LIBPSL
 
 # libcurl: build for all arches (uses out-of-tree builds)
-ARG CURL=curl-8.19.0
-ARG CURL_VER=8_19_0
+ARG CURL=curl-8.20.0
+ARG CURL_VER=8_20_0
 RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz && \
     tar xf $CURL.tar.xz && rm $CURL.tar.xz && \
     for arch in armhf amd64 arm64; do \
@@ -188,7 +188,7 @@ RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$
     rm -rf $CURL
 
 # libarchive: build for all arches
-ARG LIBARCHIVE_VER=3.8.6
+ARG LIBARCHIVE_VER=3.8.7
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
 RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz && \
     tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz && \
@@ -198,8 +198,8 @@ RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LI
     rm -rf $LIBARCHIVE
 
 # libuuid (util-linux): build for all arches
-ARG UTIL_LINUX_SERIES=2.41
-ARG UTIL_LINUX_VER=2.41.4
+ARG UTIL_LINUX_SERIES=2.42
+ARG UTIL_LINUX_VER=2.42.1
 ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
 RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz && \
     tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz && \
@@ -209,7 +209,7 @@ RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${U
     rm -rf $UTIL_LINUX
 
 # libusb: build for all arches (static, no udev)
-ARG LIBUSB_VER=1.0.29
+ARG LIBUSB_VER=1.0.30
 ARG LIBUSB=libusb-$LIBUSB_VER
 RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 && \
     tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2 && \
