@@ -148,75 +148,75 @@ RUN set -e; for arch_tc in \
 # Build cross-compiled dependencies for all architectures
 # ------------------------------------------
 
-# Download all dependency sources once
+# Boost: bootstrap once, build for all arches
 ARG BOOST=boost-1.90.0
+RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz && \
+    tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz && \
+    (cd "$BOOST" && ./bootstrap.sh) && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-boost.sh "$arch" "$BOOST"; \
+    done && \
+    rm -rf "$BOOST"
+
+# OpenSSL: build for all arches (Configure + make clean between each)
 ARG OPENSSL=openssl-3.5.6
+RUN set -e; wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz && \
+    tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz  && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-openssl.sh "$arch" "$OPENSSL"; \
+    done && \
+    rm -rf $OPENSSL
+
+# libpsl: build for all arches
 ARG LIBPSL_VER=0.21.5
 ARG LIBPSL=libpsl-$LIBPSL_VER
+RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz && \
+    tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libpsl.sh "$arch" "$LIBPSL"; \
+    done && \
+    rm -rf $LIBPSL
+
+# libcurl: build for all arches (uses out-of-tree builds)
 ARG CURL=curl-8.19.0
 ARG CURL_VER=8_19_0
+RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz && \
+    tar xf $CURL.tar.xz && rm $CURL.tar.xz && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libcurl.sh "$arch" "$CURL"; \
+    done && \
+    rm -rf $CURL
+
+# libarchive: build for all arches
 ARG LIBARCHIVE_VER=3.8.6
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
+RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz && \
+    tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
+    done && \
+    rm -rf $LIBARCHIVE
+
+# libuuid (util-linux): build for all arches
 ARG UTIL_LINUX_SERIES=2.41
 ARG UTIL_LINUX_VER=2.41.4
 ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
-ARG LIBUSB_VER=1.0.29
-ARG LIBUSB=libusb-$LIBUSB_VER
-
-RUN wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz \
-    && tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz \
-    && wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz \
-    && tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz \
-    && wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz \
-    && tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz \
-    && wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz \
-    && tar xf $CURL.tar.xz && rm $CURL.tar.xz \
-    && wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz \
-    && tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz \
-    && wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz \
-    && tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz \
-    && wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 \
-    && tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2
-
-# Boost: bootstrap once, build for all arches
-RUN cd $BOOST && ./bootstrap.sh
-
-RUN set -e; for arch in armhf amd64 arm64; do \
-        /opt/scripts/deps/build-boost.sh "$arch" "$BOOST"; \
-    done
-
-# OpenSSL: build for all arches (Configure + make clean between each)
-RUN set -e; for arch in armhf amd64 arm64; do \
-        /opt/scripts/deps/build-openssl.sh "$arch" "$OPENSSL"; \
-    done
-
-# libpsl: build for all arches
-RUN set -e; for arch in armhf amd64 arm64; do \
-        /opt/scripts/deps/build-libpsl.sh "$arch" "$LIBPSL"; \
-    done
-
-# libcurl: build for all arches (uses out-of-tree builds)
-RUN set -e; for arch in armhf amd64 arm64; do \
-        /opt/scripts/deps/build-libcurl.sh "$arch" "$CURL"; \
-    done
-
-# libarchive: build for all arches
-RUN set -e; for arch in armhf amd64 arm64; do \
-        /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
-    done
-
-# libuuid (util-linux): build for all arches
-RUN set -e; for arch in armhf amd64 arm64; do \
+RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz && \
+    tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz && \
+    for arch in armhf amd64 arm64; do \
         /opt/scripts/deps/build-libuuid.sh "$arch" "$UTIL_LINUX"; \
-    done
+    done && \
+    rm -rf $UTIL_LINUX
 
 # libusb: build for all arches (static, no udev)
-RUN set -e; for arch in armhf amd64 arm64; do \
+ARG LIBUSB_VER=1.0.29
+ARG LIBUSB=libusb-$LIBUSB_VER
+RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 && \
+    tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2 && \
+    for arch in armhf amd64 arm64; do \
         /opt/scripts/deps/build-libusb.sh "$arch" "$LIBUSB"; \
-    done
-
-# Clean up all dependency sources
-RUN rm -rf $BOOST $OPENSSL $LIBPSL $CURL $LIBARCHIVE $UTIL_LINUX $LIBUSB
+    done && \
+    rm -rf $LIBUSB
 
 # ------------------------------------------
 # Entrypoint: sources /opt/$ARCH/toolchain.env at runtime
