@@ -149,7 +149,7 @@ RUN set -e; for arch_tc in \
 # ------------------------------------------
 
 # Boost: bootstrap once, build for all arches
-ARG BOOST=boost-1.91.0-1
+ARG BOOST=boost-1.90.0
 RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz && \
     tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz && \
     (cd "$BOOST" && ./bootstrap.sh) && \
