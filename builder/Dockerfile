@@ -3,7 +3,7 @@
 # Unified Multi-Architecture Builder Image
 #
 # Contains GCC cross-toolchains, target sysroots, and cross-compiled
-# dependencies (Boost, OpenSSL, libpsl, libcurl, libarchive, libuuid, libusb) for all
+# dependencies (Boost, OpenSSL, libpsl, c-ares, libcurl, libarchive, libuuid, libusb) for all
 # three target architectures: armhf, amd64, arm64.
 #
 # Layout inside the image:
@@ -159,7 +159,7 @@ RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOO
     rm -rf "$BOOST"
 
 # OpenSSL: build for all arches (Configure + make clean between each)
-ARG OPENSSL=openssl-3.5.6
+ARG OPENSSL=openssl-3.5.7
 RUN set -e; wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz && \
     tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz  && \
     for arch in armhf amd64 arm64; do \
@@ -168,7 +168,7 @@ RUN set -e; wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$
     rm -rf $OPENSSL
 
 # libpsl: build for all arches
-ARG LIBPSL_VER=0.21.5
+ARG LIBPSL_VER=0.23.1
 ARG LIBPSL=libpsl-$LIBPSL_VER
 RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz && \
     tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz && \
@@ -177,9 +177,19 @@ RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_
     done && \
     rm -rf $LIBPSL
 
+# c-ares: build for all arches (libcurl DNS; static, no tools)
+ARG CARES_VER=1.34.8
+ARG CARES=c-ares-$CARES_VER
+RUN set -e; wget https://github.com/c-ares/c-ares/releases/download/v$CARES_VER/$CARES.tar.gz && \
+    tar xf $CARES.tar.gz && rm $CARES.tar.gz && \
+    for arch in armhf amd64 arm64; do \
+        /opt/scripts/deps/build-c-ares.sh "$arch" "$CARES"; \
+    done && \
+    rm -rf $CARES
+
 # libcurl: build for all arches (uses out-of-tree builds)
-ARG CURL=curl-8.20.0
-ARG CURL_VER=8_20_0
+ARG CURL=curl-8.21.0
+ARG CURL_VER=8_21_0
 RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz && \
     tar xf $CURL.tar.xz && rm $CURL.tar.xz && \
     for arch in armhf amd64 arm64; do \
@@ -188,7 +198,7 @@ RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$
     rm -rf $CURL
 
 # libarchive: build for all arches
-ARG LIBARCHIVE_VER=3.8.7
+ARG LIBARCHIVE_VER=3.8.9
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
 RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz && \
     tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz && \
@@ -199,7 +209,7 @@ RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LI
 
 # libuuid (util-linux): build for all arches
 ARG UTIL_LINUX_SERIES=2.42
-ARG UTIL_LINUX_VER=2.42.1
+ARG UTIL_LINUX_VER=2.42.2
 ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
 RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz && \
     tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz && \
