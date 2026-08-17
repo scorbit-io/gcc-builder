@@ -38,9 +38,9 @@ SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
 # armhf only: same as ubuntu_builder_12.04 OPENSSL_CONFIG_ARGS=no-asm (old armv7/glibc targets).
 OPENSSL_EXTRAS=
-if [ "$ARCH_NAME" = armhf ]; then
-    OPENSSL_EXTRAS=no-asm
-fi
+# if [ "$ARCH_NAME" = armhf ]; then
+#     OPENSSL_EXTRAS=no-asm
+# fi
 
 # Build OpenSSL using build-for-arch.sh
 build-for-arch.sh "$ARCH_NAME" \
