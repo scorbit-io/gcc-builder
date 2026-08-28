@@ -76,9 +76,6 @@ EOF
     if [[ "$arch" == musl-* ]]; then
         cat >> "$CMAKE_FILE" <<EOF
 
-# Debian bookworm musl sysroots: headers under usr/include/${target} (and shared usr/include).
-string(APPEND CMAKE_C_FLAGS_INIT " -isystem \${CMAKE_SYSROOT}/usr/include/${target} -isystem \${CMAKE_SYSROOT}/usr/include")
-string(APPEND CMAKE_CXX_FLAGS_INIT " -isystem \${CMAKE_SYSROOT}/usr/include/${target} -isystem \${CMAKE_SYSROOT}/usr/include")
 # Musl builder: link fully static executables by default (override for shared if needed).
 string(APPEND CMAKE_EXE_LINKER_FLAGS_INIT " -static")
 EOF
@@ -151,11 +148,8 @@ EOF
     fi
 
     if [[ "$arch" == musl-* ]]; then
-        cat >> "$ENV_FILE" <<EOF
+        cat >> "$ENV_FILE" <<'EOF'
 
-# Debian musl sysroot include layout (matches Dockerfile.musl smoke test).
-export CFLAGS="\${CFLAGS} -isystem \${SYSROOT}/usr/include/${target} -isystem \${SYSROOT}/usr/include"
-export CXXFLAGS="\${CXXFLAGS} -isystem \${SYSROOT}/usr/include/${target} -isystem \${SYSROOT}/usr/include"
 # Fully static musl binaries (default for gcc-builder-musl). Unset or override for shared builds.
 export LDFLAGS="-static"
 EOF
