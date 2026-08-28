@@ -19,13 +19,13 @@ cd "$OPENSSL_DIR"
 
 # Determine OpenSSL config based on architecture
 case "$ARCH_NAME" in
-    armhf)
+    armhf|musl-armhf|musl-armel)
         CONFIG_NAME="linux-armv4"
         ;;
     amd64)
         CONFIG_NAME="linux-x86_64"
         ;;
-    arm64)
+    arm64|musl-arm64)
         CONFIG_NAME="linux-aarch64"
         ;;
     *)
