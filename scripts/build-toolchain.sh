@@ -87,6 +87,9 @@ case "$ARCH_NAME" in
     musl-arm64)
         EXTRA_GCC_OPTS="--disable-libstdcxx-pch --disable-libstdcxx-backtrace"
         ;;
+    musl-amd64)
+        EXTRA_GCC_OPTS="--disable-libstdcxx-pch --disable-libstdcxx-backtrace"
+        ;;
 esac
 
 CPPFLAGS="-I/usr/include/$(gcc -dumpmachine)" \

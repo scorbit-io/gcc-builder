@@ -22,7 +22,7 @@ case "$ARCH_NAME" in
     armhf|musl-armhf|musl-armel)
         CONFIG_NAME="linux-armv4"
         ;;
-    amd64)
+    amd64|musl-amd64)
         CONFIG_NAME="linux-x86_64"
         ;;
     arm64|musl-arm64)

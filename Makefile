@@ -33,9 +33,9 @@ ifeq ($(DOCKER_RELEASE),)
 # Musl tarball/sysroot targets do not need a release tag (builder-musl / push-musl still do).
 DOCKER_RELEASE_EXEMPT := help clean clean-all \
 	toolchains-musl \
-	musl-toolchain-armhf musl-toolchain-armel musl-toolchain-arm64 \
-	musl-toolchain-sysroot-armhf musl-toolchain-sysroot-armel musl-toolchain-sysroot-arm64 \
-	musl-sysroot-armhf musl-sysroot-armel musl-sysroot-arm64
+	musl-toolchain-armhf musl-toolchain-armel musl-toolchain-arm64 musl-toolchain-amd64 \
+	musl-toolchain-sysroot-armhf musl-toolchain-sysroot-armel musl-toolchain-sysroot-arm64 musl-toolchain-sysroot-amd64 \
+	musl-sysroot-armhf musl-sysroot-armel musl-sysroot-arm64 musl-sysroot-amd64
 ifneq ($(filter-out $(DOCKER_RELEASE_EXEMPT),$(MAKECMDGOALS)),)
 $(error Set DOCKER_RELEASE=… on the command line, create $(DOCKER_RELEASE_FILE), or use .env — run `make help`)
 endif
@@ -93,7 +93,7 @@ platform = $(shell scripts/parse-platform.sh $(1) $(2))
 # -------------------------------------------------------
 # Phony targets
 # -------------------------------------------------------
-MUSL_ARCHES := armhf armel arm64
+MUSL_ARCHES := armhf armel arm64 amd64
 PLATFORMS_MUSL := platforms-musl.conf
 # musl-$(stem) e.g. musl-armhf — arch keys in platforms-musl.conf
 platform_musl = $(shell scripts/parse-platform.sh musl-$(1) $(2) $(PLATFORMS_MUSL))
@@ -115,7 +115,7 @@ help:
 	@echo '  toolchains      artifacts/<platform-slug>/toolchain-<arch>.tar.gz for each arch'
 	@echo '  builder         Unified builder image with all 3 architectures'
 	@echo '  python-builder  Slim image for Python 3 / 2.7 wheel packaging (pip, setuptools, wheel)'
-	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64, static defaults)'
+	@echo '  builder-musl    gcc-builder-musl image (Debian bookworm musl sysroots, armhf + armel + arm64 + amd64, static defaults)'
 	@echo '  toolchains-musl musl cross-compiler tarballs only (musl-toolchain-<cpu>.tar.gz)'
 	@echo '  clean           Remove intermediate gcc-toolchain-sysroot-* / gcc-sysroot-* images only'
 	@echo '  clean-all       Same as clean, plus delete artifacts/'
@@ -292,7 +292,7 @@ builder: $(addprefix sysroot-,$(ARCHES))
 # Cleanup
 # -------------------------------------------------------
 # Musl layer 1a / 1b / 2 (names chosen so they do not match toolchain-% / sysroot-% patterns)
-# Musl toolchain sysroots: Debian bookworm-slim (arm32v7 armhf, arm32v5 armel, arm64v8 arm64).
+# Musl toolchain sysroots: Debian bookworm-slim (arm32v7 armhf, arm32v5 armel, arm64v8 arm64, amd64).
 musl-toolchain-sysroot-armhf:
 	docker build \
 		--platform=$(call platform_musl,armhf,platform) \
@@ -314,6 +314,13 @@ musl-toolchain-sysroot-arm64:
 		-t $(IMAGE_PREFIX)-musl-toolchain-sysroot-arm64 \
 		toolchain-sysroots/
 
+musl-toolchain-sysroot-amd64:
+	docker build \
+		--platform=$(call platform_musl,amd64,platform) \
+		-f toolchain-sysroots/Dockerfile.debian-musl-amd64 \
+		-t $(IMAGE_PREFIX)-musl-toolchain-sysroot-amd64 \
+		toolchain-sysroots/
+
 musl-sysroot-armhf:
 	docker build \
 		--platform=$(call platform_musl,armhf,platform) \
@@ -333,6 +340,13 @@ musl-sysroot-arm64:
 		--platform=$(call platform_musl,arm64,platform) \
 		-f sysroots/Dockerfile.debian-musl-arm64 \
 		-t $(IMAGE_PREFIX)-musl-sysroot-arm64 \
+		sysroots/
+
+musl-sysroot-amd64:
+	docker build \
+		--platform=$(call platform_musl,amd64,platform) \
+		-f sysroots/Dockerfile.debian-musl-amd64 \
+		-t $(IMAGE_PREFIX)-musl-sysroot-amd64 \
 		sysroots/
 
 musl-toolchain-%: musl-toolchain-sysroot-%
