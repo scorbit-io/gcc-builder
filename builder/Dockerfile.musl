@@ -215,6 +215,54 @@ RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER
     done && \
     rm -rf $LIBUSB
 
+# ------------------------------------------
+# Verify the built libraries actually produce a fully static binary
+# (the whole point of this image) using pkg-config for the real,
+# transitive link line rather than a hand-guessed one.
+# ------------------------------------------
+RUN set -e; for arch_tc in \
+        musl-armhf:arm-linux-musleabihf \
+        musl-armel:arm-linux-musleabi \
+        musl-arm64:aarch64-linux-musl; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    sr="/opt/${arch}/sysroot"; \
+    export PKG_CONFIG_SYSROOT_DIR="$sr"; \
+    export PKG_CONFIG_PATH="$sr/usr/local/lib/pkgconfig"; \
+    export PKG_CONFIG_LIBDIR="$sr/usr/local/lib/pkgconfig:$sr/usr/lib/pkgconfig"; \
+    pc_cflags=$(pkg-config --static --cflags libcurl libarchive uuid libusb-1.0); \
+    pc_libs=$(pkg-config --static --libs libcurl libarchive uuid libusb-1.0); \
+    printf '%s\n' \
+        '#include <curl/curl.h>' \
+        '#include <archive.h>' \
+        '#include <uuid/uuid.h>' \
+        '#include <libusb-1.0/libusb.h>' \
+        'int main(void) {' \
+        '    curl_version();' \
+        '    struct archive *a = archive_read_new(); archive_read_free(a);' \
+        '    uuid_t id; uuid_generate(id);' \
+        '    libusb_get_version();' \
+        '    return 0;' \
+        '}' \
+        > /tmp/statictest.c; \
+    ${target}-gcc --sysroot="$sr" \
+        -isystem "$sr/usr/include/${target}" -isystem "$sr/usr/include" \
+        $pc_cflags /tmp/statictest.c -o /tmp/statictest -static $pc_libs; \
+    file /tmp/statictest; \
+    ldd /tmp/statictest 2>&1 | grep -qi "not a dynamic executable" \
+        && echo "OK: $arch test binary is fully static" \
+        || { echo "ERROR: $arch test binary is not fully static" >&2; ldd /tmp/statictest >&2 || true; exit 1; }; \
+    printf '%s\n' \
+        '#include <boost/version.hpp>' \
+        'static_assert(BOOST_VERSION > 0, "boost headers missing");' \
+        'int main() { return 0; }' \
+        > /tmp/boosttest.cpp; \
+    ${target}-g++ --sysroot="$sr" \
+        -isystem "$sr/usr/include/${target}" -isystem "$sr/usr/include" \
+        -isystem "$sr/usr/local/include" \
+        -c /tmp/boosttest.cpp -o /tmp/boosttest.o; \
+    rm -f /tmp/statictest.c /tmp/statictest /tmp/boosttest.cpp /tmp/boosttest.o; \
+    done
+
 COPY builder/entrypoint.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
