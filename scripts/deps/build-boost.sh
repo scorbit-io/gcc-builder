@@ -19,6 +19,14 @@ cd "$BOOST_DIR"
 
 SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
+# Debian bookworm musl sysroots (gcc-builder-musl): headers under usr/include/$TARGET.
+# b2 has no DESTDIR, so it never runs through build-for-arch.sh — add these explicitly
+# (every other dep script gets them for free via build-for-arch.sh's exported CFLAGS).
+EXTRA_CFLAGS=""
+if [[ "$ARCH_NAME" == musl-* ]]; then
+    EXTRA_CFLAGS=" -isystem ${SYSROOT}/usr/include/${TARGET} -isystem ${SYSROOT}/usr/include"
+fi
+
 echo "using gcc : ${ARCH_NAME} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET}-g++ ;" > user-config.jam
 
 # Build Boost (b2 has no DESTDIR; install directly into sysroot)
@@ -29,8 +37,8 @@ echo "using gcc : ${ARCH_NAME} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET}-g++ ;
     target-os=linux \
     threading=multi \
     link=static \
-    cflags="--sysroot=${SYSROOT} -fPIC" \
-    cxxflags="--sysroot=${SYSROOT} -fPIC" \
+    cflags="--sysroot=${SYSROOT}${EXTRA_CFLAGS} -fPIC" \
+    cxxflags="--sysroot=${SYSROOT}${EXTRA_CFLAGS} -fPIC" \
     linkflags="--sysroot=${SYSROOT}" \
     --without-python \
     install
