@@ -19,14 +19,6 @@ cd "$BOOST_DIR"
 
 SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
-# Debian bookworm musl sysroots (gcc-builder-musl): headers under usr/include/$TARGET.
-# b2 has no DESTDIR, so it never runs through build-for-arch.sh — add these explicitly
-# (every other dep script gets them for free via build-for-arch.sh's exported CFLAGS).
-EXTRA_CFLAGS=""
-if [[ "$ARCH_NAME" == musl-* ]]; then
-    EXTRA_CFLAGS=" -isystem ${SYSROOT}/usr/include/${TARGET} -isystem ${SYSROOT}/usr/include"
-fi
-
 # Boost.Build parses a hyphenated toolset id (e.g. "gcc-musl-armhf") as
 # <version>-<subfeature> and rejects "musl" as an unknown subfeature value.
 # Use an underscore instead — harmless no-op for hyphen-free arches like armhf/arm64.
@@ -42,8 +34,8 @@ echo "using gcc : ${BOOST_TOOLSET_ID} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET
     target-os=linux \
     threading=multi \
     link=static \
-    cflags="--sysroot=${SYSROOT}${EXTRA_CFLAGS} -fPIC" \
-    cxxflags="--sysroot=${SYSROOT}${EXTRA_CFLAGS} -fPIC" \
+    cflags="--sysroot=${SYSROOT} -fPIC" \
+    cxxflags="--sysroot=${SYSROOT} -fPIC" \
     linkflags="--sysroot=${SYSROOT}" \
     --without-python \
     install
