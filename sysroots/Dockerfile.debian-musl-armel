@@ -8,3 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     musl-dev \
     linux-libc-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# linux-libc-dev only ships kernel UAPI headers (asm/*.h) under Debian's glibc
+# multiarch triple, not the musl one our cross-GCC searches. The headers are
+# libc-agnostic, so symlinking is correct, not a workaround.
+RUN ln -s ../arm-linux-gnueabi/asm /usr/include/arm-linux-musleabi/asm
