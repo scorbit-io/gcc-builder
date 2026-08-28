@@ -47,6 +47,7 @@ build-for-arch.sh "$ARCH_NAME" \
     ./Configure "$CONFIG_NAME" \
         --prefix=/usr/local \
         --openssldir=/usr/local/ssl \
+        --libdir=lib \
         no-apps no-shared no-pinshared no-dso no-engine $OPENSSL_EXTRAS
 
 make -j$(nproc)
