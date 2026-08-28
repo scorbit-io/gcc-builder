@@ -19,13 +19,18 @@ cd "$BOOST_DIR"
 
 SYSROOT="/opt/${ARCH_NAME}/sysroot"
 
-echo "using gcc : ${ARCH_NAME} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET}-g++ ;" > user-config.jam
+# Boost.Build parses a hyphenated toolset id (e.g. "gcc-musl-armhf") as
+# <version>-<subfeature> and rejects "musl" as an unknown subfeature value.
+# Use an underscore instead — harmless no-op for hyphen-free arches like armhf/arm64.
+BOOST_TOOLSET_ID="${ARCH_NAME//-/_}"
+
+echo "using gcc : ${BOOST_TOOLSET_ID} : /opt/${ARCH_NAME}/toolchain/bin/${TARGET}-g++ ;" > user-config.jam
 
 # Build Boost (b2 has no DESTDIR; install directly into sysroot)
 ./b2 -j$(nproc) \
     --user-config=user-config.jam \
     --prefix="${SYSROOT}/usr/local" \
-    toolset=gcc-${ARCH_NAME} \
+    toolset=gcc-${BOOST_TOOLSET_ID} \
     target-os=linux \
     threading=multi \
     link=static \

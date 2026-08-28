@@ -52,6 +52,31 @@ All architecture parameters are driven by `platforms.conf`.
     toolchain.env
 ```
 
+## Musl static builder (gcc-builder-musl)
+
+A separate image, `gcc-builder-musl` (`builder/Dockerfile.musl`), targets musl instead
+of glibc so applications can be linked fully static:
+
+| Arch        | Triple               | Sysroot                          |
+| ----------- | -------------------- | --------------------------------- |
+| musl-armhf  | arm-linux-musleabihf | Debian bookworm (arm32v7)         |
+| musl-armel  | arm-linux-musleabi   | Debian bookworm (arm32v5)         |
+| musl-arm64  | aarch64-linux-musl   | Debian bookworm (arm64v8)         |
+
+All parameters are driven by `platforms-musl.conf` (same format as `platforms.conf`).
+
+**Important:** unlike `gcc-builder`, the `ARCH` value for `gcc-builder-musl` always
+carries the `musl-` prefix (`musl-armhf` / `musl-armel` / `musl-arm64`, default
+`musl-armhf`) — e.g. `docker run -e ARCH=musl-arm64 gcc-builder-musl:<release> ...`.
+The prefix is required: it's the key used throughout `scripts/` and
+`platforms-musl.conf` to select the musl toolchain/sysroot layout under
+`/opt/musl-<arch>/` instead of the glibc one under `/opt/<arch>/`.
+
+`gcc-builder-musl` ships the same static dependency set as `gcc-builder` (Boost,
+OpenSSL, libpsl, c-ares, libcurl, libarchive, libuuid, libusb), and its generated
+`toolchain.cmake` / `toolchain.env` default `LDFLAGS`/`CMAKE_EXE_LINKER_FLAGS_INIT` to
+`-static`, so binaries built with this image link fully static by default.
+
 ## Quick start
 
 Set the release suffix for the builder image tag using **one** of:

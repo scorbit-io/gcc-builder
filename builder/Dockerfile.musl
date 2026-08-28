@@ -2,6 +2,10 @@
 # ==========================================
 # Musl-only static builder (armhf + armel + arm64)
 #
+# Contains GCC cross-toolchains, target sysroots, and cross-compiled
+# dependencies (Boost, OpenSSL, libpsl, c-ares, libcurl, libarchive, libuuid, libusb) for
+# all three musl target architectures: musl-armhf, musl-armel, musl-arm64.
+#
 # Image tag (Makefile): gcc-builder-musl:<DOCKER_RELEASE>
 #
 # Layout:
@@ -119,11 +123,140 @@ RUN set -e; for arch_tc in \
     echo '#include <stdio.h>' > /tmp/test.c; \
     echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c; \
     sr="/opt/${arch}/sysroot"; \
-    ${target}-gcc --sysroot="$sr" \
-        -isystem "$sr/usr/include/${target}" -isystem "$sr/usr/include" \
-        /tmp/test.c -o /tmp/test -static; \
+    ${target}-gcc --sysroot="$sr" /tmp/test.c -o /tmp/test -static; \
     file /tmp/test; \
     rm /tmp/test.c /tmp/test; \
+    done
+
+# ------------------------------------------
+# Build cross-compiled dependencies for all architectures
+# (same versions as builder/Dockerfile — keep the two in sync)
+# ------------------------------------------
+
+# Boost: bootstrap once, build for all arches
+ARG BOOST=boost-1.92.0
+RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz && \
+    tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz && \
+    (cd "$BOOST" && ./bootstrap.sh) && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-boost.sh "$arch" "$BOOST"; \
+    done && \
+    rm -rf "$BOOST"
+
+# OpenSSL: build for all arches (Configure + make clean between each)
+ARG OPENSSL=openssl-3.5.7
+RUN set -e; wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz && \
+    tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz  && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-openssl.sh "$arch" "$OPENSSL"; \
+    done && \
+    rm -rf $OPENSSL
+
+# libpsl: build for all arches
+ARG LIBPSL_VER=0.23.1
+ARG LIBPSL=libpsl-$LIBPSL_VER
+RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz && \
+    tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-libpsl.sh "$arch" "$LIBPSL"; \
+    done && \
+    rm -rf $LIBPSL
+
+# c-ares: build for all arches (libcurl DNS; static, no tools)
+ARG CARES_VER=1.34.8
+ARG CARES=c-ares-$CARES_VER
+RUN set -e; wget https://github.com/c-ares/c-ares/releases/download/v$CARES_VER/$CARES.tar.gz && \
+    tar xf $CARES.tar.gz && rm $CARES.tar.gz && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-c-ares.sh "$arch" "$CARES"; \
+    done && \
+    rm -rf $CARES
+
+# libcurl: build for all arches (uses out-of-tree builds)
+ARG CURL=curl-8.21.0
+ARG CURL_VER=8_21_0
+RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz && \
+    tar xf $CURL.tar.xz && rm $CURL.tar.xz && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-libcurl.sh "$arch" "$CURL"; \
+    done && \
+    rm -rf $CURL
+
+# libarchive: build for all arches
+ARG LIBARCHIVE_VER=3.8.9
+ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
+RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz && \
+    tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
+    done && \
+    rm -rf $LIBARCHIVE
+
+# libuuid (util-linux): build for all arches
+ARG UTIL_LINUX_SERIES=2.42
+ARG UTIL_LINUX_VER=2.42.2
+ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
+RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz && \
+    tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-libuuid.sh "$arch" "$UTIL_LINUX"; \
+    done && \
+    rm -rf $UTIL_LINUX
+
+# libusb: build for all arches (static, no udev)
+ARG LIBUSB_VER=1.0.30
+ARG LIBUSB=libusb-$LIBUSB_VER
+RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 && \
+    tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2 && \
+    for arch in musl-armhf musl-armel musl-arm64; do \
+        /opt/scripts/deps/build-libusb.sh "$arch" "$LIBUSB"; \
+    done && \
+    rm -rf $LIBUSB
+
+# ------------------------------------------
+# Verify the built libraries actually produce a fully static binary
+# (the whole point of this image) using pkg-config for the real,
+# transitive link line rather than a hand-guessed one.
+# ------------------------------------------
+RUN set -e; for arch_tc in \
+        musl-armhf:arm-linux-musleabihf \
+        musl-armel:arm-linux-musleabi \
+        musl-arm64:aarch64-linux-musl; do \
+    arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
+    sr="/opt/${arch}/sysroot"; \
+    export PKG_CONFIG_SYSROOT_DIR="$sr"; \
+    export PKG_CONFIG_PATH="$sr/usr/local/lib/pkgconfig"; \
+    export PKG_CONFIG_LIBDIR="$sr/usr/local/lib/pkgconfig:$sr/usr/lib/pkgconfig"; \
+    pc_cflags=$(pkg-config --static --cflags libcurl libarchive uuid libusb-1.0); \
+    pc_libs=$(pkg-config --static --libs libcurl libarchive uuid libusb-1.0); \
+    printf '%s\n' \
+        '#include <curl/curl.h>' \
+        '#include <archive.h>' \
+        '#include <uuid/uuid.h>' \
+        '#include <libusb-1.0/libusb.h>' \
+        'int main(void) {' \
+        '    curl_version();' \
+        '    struct archive *a = archive_read_new(); archive_read_free(a);' \
+        '    uuid_t id; uuid_generate(id);' \
+        '    libusb_get_version();' \
+        '    return 0;' \
+        '}' \
+        > /tmp/statictest.c; \
+    ${target}-gcc --sysroot="$sr" \
+        $pc_cflags /tmp/statictest.c -o /tmp/statictest -static $pc_libs; \
+    file /tmp/statictest; \
+    ldd /tmp/statictest 2>&1 | grep -qi "not a dynamic executable" \
+        && echo "OK: $arch test binary is fully static" \
+        || { echo "ERROR: $arch test binary is not fully static" >&2; ldd /tmp/statictest >&2 || true; exit 1; }; \
+    printf '%s\n' \
+        '#include <boost/version.hpp>' \
+        'static_assert(BOOST_VERSION > 0, "boost headers missing");' \
+        'int main() { return 0; }' \
+        > /tmp/boosttest.cpp; \
+    ${target}-g++ --sysroot="$sr" \
+        -isystem "$sr/usr/local/include" \
+        -c /tmp/boosttest.cpp -o /tmp/boosttest.o; \
+    rm -f /tmp/statictest.c /tmp/statictest /tmp/boosttest.cpp /tmp/boosttest.o; \
     done
 
 COPY builder/entrypoint.sh /opt/entrypoint.sh

@@ -51,11 +51,6 @@ export CMAKE_TOOLCHAIN=/opt/${ARCH_NAME}/toolchain.cmake
 export CFLAGS="--sysroot=$SYSROOT -fPIC -static-libgcc"
 export CXXFLAGS="--sysroot=$SYSROOT -fPIC -static-libstdc++ -static-libgcc"
 export LDFLAGS="--sysroot=$SYSROOT -L$SYSROOT/usr/local/lib -Wl,-rpath-link=$SYSROOT/lib/$TARGET -Wl,-rpath-link=$SYSROOT/usr/lib/$TARGET"
-# Debian bookworm musl sysroots (gcc-builder-musl): headers under usr/include/$TARGET.
-if [[ "$ARCH_NAME" == musl-* ]]; then
-    export CFLAGS="$CFLAGS -isystem $SYSROOT/usr/include/$TARGET -isystem $SYSROOT/usr/include"
-    export CXXFLAGS="$CXXFLAGS -isystem $SYSROOT/usr/include/$TARGET -isystem $SYSROOT/usr/include"
-fi
 if [ "$ARCH_NAME" = "armhf" ] || [ "$ARCH_NAME" = "musl-armhf" ] || [ "$ARCH_NAME" = "musl-armel" ]; then
     export LIBS="${LIBS:+$LIBS }-Wl,-Bstatic -latomic -Wl,-Bdynamic"
 fi
