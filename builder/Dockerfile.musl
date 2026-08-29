@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 # ==========================================
-# Musl-only static builder (armhf + armel + arm64)
+# Musl-only static builder (armhf + armel + arm64 + amd64)
 #
 # Contains GCC cross-toolchains, target sysroots, and cross-compiled
 # dependencies (Boost, OpenSSL, libpsl, c-ares, libcurl, libarchive, libuuid, libusb) for
-# all three musl target architectures: musl-armhf, musl-armel, musl-arm64.
+# all four musl target architectures: musl-armhf, musl-armel, musl-arm64, musl-amd64.
 #
 # Image tag (Makefile): gcc-builder-musl:<DOCKER_RELEASE>
 #
@@ -12,8 +12,9 @@
 #   /opt/musl-armhf/   arm-linux-musleabihf (Debian bookworm arm32v7 musl sysroot)
 #   /opt/musl-armel/   arm-linux-musleabi   (Debian bookworm arm32v5 musl sysroot)
 #   /opt/musl-arm64/   aarch64-linux-musl   (Debian bookworm arm64v8 musl sysroot)
+#   /opt/musl-amd64/   x86_64-linux-musl    (Debian bookworm amd64 musl sysroot)
 #
-# Runtime: ARCH=musl-armhf | musl-armel | musl-arm64 (default: musl-armhf)
+# Runtime: ARCH=musl-armhf | musl-armel | musl-arm64 | musl-amd64 (default: musl-armhf)
 #   docker run -e ARCH=musl-arm64 $(MUSL_BUILDER_TAG) aarch64-linux-musl-gcc --version
 #
 # Toolchain files default to fully static linking (see toolchain.env / toolchain.cmake).
@@ -27,6 +28,7 @@ ARG ARTIFACTS_SUBDIR=linux-amd64
 FROM --platform=linux/arm/v7 ${IMAGE_PREFIX}-musl-sysroot-armhf AS sysroot_musl_armhf
 FROM --platform=linux/arm/v5 ${IMAGE_PREFIX}-musl-sysroot-armel AS sysroot_musl_armel
 FROM --platform=linux/arm64 ${IMAGE_PREFIX}-musl-sysroot-arm64 AS sysroot_musl_arm64
+FROM --platform=linux/amd64 ${IMAGE_PREFIX}-musl-sysroot-amd64 AS sysroot_musl_amd64
 
 FROM --platform=${HOST_PLATFORM} ubuntu:${HOST_UBUNTU}
 
@@ -71,13 +73,15 @@ ARG ARTIFACTS_SUBDIR
 ADD artifacts/${ARTIFACTS_SUBDIR}/musl-toolchain-armhf.tar.gz /
 ADD artifacts/${ARTIFACTS_SUBDIR}/musl-toolchain-armel.tar.gz /
 ADD artifacts/${ARTIFACTS_SUBDIR}/musl-toolchain-arm64.tar.gz /
+ADD artifacts/${ARTIFACTS_SUBDIR}/musl-toolchain-amd64.tar.gz /
 
-ENV PATH=/opt/musl-armhf/toolchain/bin:/opt/musl-armel/toolchain/bin:/opt/musl-arm64/toolchain/bin:$PATH
+ENV PATH=/opt/musl-armhf/toolchain/bin:/opt/musl-armel/toolchain/bin:/opt/musl-arm64/toolchain/bin:/opt/musl-amd64/toolchain/bin:$PATH
 
 RUN set -e; for arch_tc in \
         musl-armhf:arm-linux-musleabihf \
         musl-armel:arm-linux-musleabi \
-        musl-arm64:aarch64-linux-musl; do \
+        musl-arm64:aarch64-linux-musl \
+        musl-amd64:x86_64-linux-musl; do \
     arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
     gcc_bin="/opt/${arch}/toolchain/bin/${target}-gcc"; \
     if ! test -x "$gcc_bin"; then \
@@ -92,8 +96,9 @@ RUN set -e; for arch_tc in \
 COPY --from=sysroot_musl_armhf / /opt/musl-armhf/sysroot/
 COPY --from=sysroot_musl_armel / /opt/musl-armel/sysroot/
 COPY --from=sysroot_musl_arm64 / /opt/musl-arm64/sysroot/
+COPY --from=sysroot_musl_amd64 / /opt/musl-amd64/sysroot/
 
-RUN set -e; for arch in musl-armhf musl-armel musl-arm64; do \
+RUN set -e; for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
     sr="/opt/${arch}/sysroot"; \
     cd "$sr" && \
     find . -type l | while read link; do \
@@ -118,7 +123,8 @@ RUN ln -s /opt/scripts/build-for-arch.sh /usr/local/bin/build-for-arch.sh
 RUN set -e; for arch_tc in \
         musl-armhf:arm-linux-musleabihf \
         musl-armel:arm-linux-musleabi \
-        musl-arm64:aarch64-linux-musl; do \
+        musl-arm64:aarch64-linux-musl \
+        musl-amd64:x86_64-linux-musl; do \
     arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
     echo '#include <stdio.h>' > /tmp/test.c; \
     echo 'int main() { printf("OK\\n"); return 0; }' >> /tmp/test.c; \
@@ -138,7 +144,7 @@ ARG BOOST=boost-1.92.0
 RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOOST-b2-nodocs.tar.xz && \
     tar xf $BOOST-b2-nodocs.tar.xz && rm $BOOST-b2-nodocs.tar.xz && \
     (cd "$BOOST" && ./bootstrap.sh) && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-boost.sh "$arch" "$BOOST"; \
     done && \
     rm -rf "$BOOST"
@@ -147,7 +153,7 @@ RUN set -e; wget https://github.com/boostorg/boost/releases/download/$BOOST/$BOO
 ARG OPENSSL=openssl-3.5.7
 RUN set -e; wget https://github.com/openssl/openssl/releases/download/$OPENSSL/$OPENSSL.tar.gz && \
     tar xf $OPENSSL.tar.gz && rm $OPENSSL.tar.gz  && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-openssl.sh "$arch" "$OPENSSL"; \
     done && \
     rm -rf $OPENSSL
@@ -157,7 +163,7 @@ ARG LIBPSL_VER=0.23.1
 ARG LIBPSL=libpsl-$LIBPSL_VER
 RUN set -e; wget https://github.com/rockdaboot/libpsl/releases/download/$LIBPSL_VER/$LIBPSL.tar.gz && \
     tar xf $LIBPSL.tar.gz && rm $LIBPSL.tar.gz && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-libpsl.sh "$arch" "$LIBPSL"; \
     done && \
     rm -rf $LIBPSL
@@ -167,7 +173,7 @@ ARG CARES_VER=1.34.8
 ARG CARES=c-ares-$CARES_VER
 RUN set -e; wget https://github.com/c-ares/c-ares/releases/download/v$CARES_VER/$CARES.tar.gz && \
     tar xf $CARES.tar.gz && rm $CARES.tar.gz && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-c-ares.sh "$arch" "$CARES"; \
     done && \
     rm -rf $CARES
@@ -177,7 +183,7 @@ ARG CURL=curl-8.21.0
 ARG CURL_VER=8_21_0
 RUN set -e; wget https://github.com/curl/curl/releases/download/curl-$CURL_VER/$CURL.tar.xz && \
     tar xf $CURL.tar.xz && rm $CURL.tar.xz && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-libcurl.sh "$arch" "$CURL"; \
     done && \
     rm -rf $CURL
@@ -187,7 +193,7 @@ ARG LIBARCHIVE_VER=3.8.9
 ARG LIBARCHIVE=libarchive-$LIBARCHIVE_VER
 RUN set -e; wget https://github.com/libarchive/libarchive/releases/download/v$LIBARCHIVE_VER/$LIBARCHIVE.tar.xz && \
     tar xf $LIBARCHIVE.tar.xz && rm $LIBARCHIVE.tar.xz && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-libarchive.sh "$arch" "$LIBARCHIVE"; \
     done && \
     rm -rf $LIBARCHIVE
@@ -198,7 +204,7 @@ ARG UTIL_LINUX_VER=2.42.2
 ARG UTIL_LINUX=util-linux-$UTIL_LINUX_VER
 RUN set -e; wget https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v${UTIL_LINUX_SERIES}/$UTIL_LINUX.tar.xz && \
     tar xf $UTIL_LINUX.tar.xz && rm $UTIL_LINUX.tar.xz && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-libuuid.sh "$arch" "$UTIL_LINUX"; \
     done && \
     rm -rf $UTIL_LINUX
@@ -208,7 +214,7 @@ ARG LIBUSB_VER=1.0.30
 ARG LIBUSB=libusb-$LIBUSB_VER
 RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER/$LIBUSB.tar.bz2 && \
     tar xf $LIBUSB.tar.bz2 && rm $LIBUSB.tar.bz2 && \
-    for arch in musl-armhf musl-armel musl-arm64; do \
+    for arch in musl-armhf musl-armel musl-arm64 musl-amd64; do \
         /opt/scripts/deps/build-libusb.sh "$arch" "$LIBUSB"; \
     done && \
     rm -rf $LIBUSB
@@ -221,7 +227,8 @@ RUN set -e; wget https://github.com/libusb/libusb/releases/download/v$LIBUSB_VER
 RUN set -e; for arch_tc in \
         musl-armhf:arm-linux-musleabihf \
         musl-armel:arm-linux-musleabi \
-        musl-arm64:aarch64-linux-musl; do \
+        musl-arm64:aarch64-linux-musl \
+        musl-amd64:x86_64-linux-musl; do \
     arch="${arch_tc%%:*}"; target="${arch_tc#*:}"; \
     sr="/opt/${arch}/sysroot"; \
     export PKG_CONFIG_SYSROOT_DIR="$sr"; \

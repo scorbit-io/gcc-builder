@@ -22,7 +22,7 @@ case "$ARCH_NAME" in
     armhf|musl-armhf|musl-armel)
         CONFIG_NAME="linux-armv4"
         ;;
-    amd64)
+    amd64|musl-amd64)
         CONFIG_NAME="linux-x86_64"
         ;;
     arm64|musl-arm64)
@@ -47,6 +47,7 @@ build-for-arch.sh "$ARCH_NAME" \
     ./Configure "$CONFIG_NAME" \
         --prefix=/usr/local \
         --openssldir=/usr/local/ssl \
+        --libdir=lib \
         no-apps no-shared no-pinshared no-dso no-engine $OPENSSL_EXTRAS
 
 make -j$(nproc)
