@@ -125,7 +125,16 @@ rm -rf "gcc-${ARCH_NAME}"
 if [ "$ARCH_NAME" = "armhf" ]; then
     for lib in libgcc.a libstdc++.a; do
         path="$("$PREFIX/bin/$TARGET-gcc" -print-file-name="$lib")"
-        if "$PREFIX/bin/$TARGET-objdump" -d "$path" | grep -qE '\svfn?m[as]\.f(32|64)'; then
+        # A library we cannot find or disassemble must fail the check, not pass it.
+        if [ ! -f "$path" ]; then
+            echo "armhf $lib not found by $TARGET-gcc: $path" >&2
+            exit 1
+        fi
+        if ! disasm="$("$PREFIX/bin/$TARGET-objdump" -d "$path")" || [ -z "$disasm" ]; then
+            echo "armhf $lib could not be disassembled: $path" >&2
+            exit 1
+        fi
+        if grep -qE '\svfn?m[as]\.f(32|64)' <<< "$disasm"; then
             echo "armhf $lib contains VFPv4 fused multiply-add instructions: $path" >&2
             exit 1
         fi
