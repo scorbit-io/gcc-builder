@@ -73,7 +73,9 @@ EXTRA_GCC_OPTS=""
 GCC_INSTALL_TARGET="install-strip"
 case "$ARCH_NAME" in
     armhf)
-        EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=neon-vfpv4 --with-float=hard"
+        # NEON + VFPv3, not VFPv4: the BeagleBone Black's Cortex-A8 has no VFPv4, and libgcc built
+        # for it (e.g. __aeabi_d2ulz's vfms) dies there with SIGILL (SB-6111).
+        EXTRA_GCC_OPTS="--with-arch=armv7-a --with-fpu=neon --with-float=hard"
         ;;
     musl-armhf)
         # Musl + libstdc++: PCH / embedded libbacktrace can fail cross-builds.
@@ -118,6 +120,18 @@ make -j$(nproc)
 make "$GCC_INSTALL_TARGET"
 cd "$BUILD_DIR"
 rm -rf "gcc-${ARCH_NAME}"
+
+# The runtime GCC links into every armhf program must not need VFPv4 (SB-6111).
+if [ "$ARCH_NAME" = "armhf" ]; then
+    for lib in libgcc.a libstdc++.a; do
+        path="$("$PREFIX/bin/$TARGET-gcc" -print-file-name="$lib")"
+        if "$PREFIX/bin/$TARGET-objdump" -d "$path" | grep -qE '\svfn?m[as]\.f(32|64)'; then
+            echo "armhf $lib contains VFPv4 fused multiply-add instructions: $path" >&2
+            exit 1
+        fi
+    done
+    echo "armhf runtime libraries are free of VFPv4 instructions"
+fi
 
 echo "Toolchain built successfully for $ARCH_NAME"
 
